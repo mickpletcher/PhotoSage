@@ -1,97 +1,283 @@
 from __future__ import annotations
 
+import json
+import time
+from dataclasses import asdict
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, Optional
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, TextColumn
 from rich.table import Table
 
-from photosage.config import load_config
+from photosage.config import AppConfig, load_config
 from photosage.logging_config import configure_logging
+from photosage.manifest.manifest_reader import ManifestValidationError
 from photosage.manifest.undo import rollback_all
+from photosage.metadata.exif_reader import extract_metadata
+from photosage.metadata.metadata_score import score_metadata
 from photosage.rename.renamer import preview_renames, rename_files
-from photosage.scanner import scan_images
+from photosage.scanner import count_unsupported_files, scan_images
 
-app = typer.Typer(help="Metadata-first AI photo organization and safe renaming CLI.")
+SUPPORTED_PROVIDERS = {"anthropic", "openai", "gemini", "ollama"}
+
+app = typer.Typer(
+    help="Metadata-first AI photo organization and safe renaming CLI.",
+    epilog="Examples: photosage scan --input ./photos | photosage preview --input ./photos | photosage rename --input ./photos --apply | photosage undo --manifest ./manifests/file.json",
+)
 console = Console()
 
 
-def _config():
-    config = load_config()
-    configure_logging(config.log_file)
+def _config(
+    config_path: Path,
+    provider: Optional[str] = None,
+    local_only: bool = False,
+    verbose: bool = False,
+) -> AppConfig:
+    config = load_config(config_path)
+    if provider:
+        provider_name = provider.lower()
+        if provider_name not in SUPPORTED_PROVIDERS:
+            raise typer.BadParameter(f"Unsupported provider: {provider}")
+        config.vision_provider = provider_name
+    if local_only:
+        config.local_only = True
+        config.vision_provider = "ollama" if config.vision_provider not in {"ollama"} else config.vision_provider
+    configure_logging(config.log_file, verbose=verbose)
     return config
 
 
-@app.command()
-def scan(input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)]) -> None:
-    """Scan an input directory for supported images."""
-    config = _config()
-    files = scan_images(input)
-    console.print(f"[green]Found {len(files)} supported images.[/green]")
-    console.print(f"Log: {config.log_file}")
+def _write_json(path: Optional[Path], payload: dict[str, Any]) -> None:
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, default=str)
+    console.print(f"[cyan]JSON output:[/cyan] {path}")
 
 
-@app.command()
-def preview(
-    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)],
-    force_ai: Annotated[bool, typer.Option("--force-ai")] = False,
-) -> None:
-    """Preview proposed renames without modifying files."""
-    config = _config()
-    result = preview_renames(input, config)
-    table = Table(title="PhotoSage Rename Preview")
+def _status_counts(items: list[dict[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in items:
+        counts[item["status"]] = counts.get(item["status"], 0) + 1
+    return counts
+
+
+def _preview_table(files: list[dict[str, Any]], title: str = "PhotoSage Rename Preview") -> Table:
+    table = Table(title=title)
     table.add_column("Original", overflow="fold")
-    table.add_column("New", overflow="fold")
+    table.add_column("Proposed", overflow="fold")
     table.add_column("Score", justify="right")
     table.add_column("AI", justify="center")
-    for item in result.manifest["files"]:
-        table.add_row(item["original_filename"], item["new_filename"], str(item["metadata_score"]), "yes" if item["ai_used"] else "no")
+    table.add_column("Provider")
+    table.add_column("Confidence", justify="right")
+    for item in files:
+        ai_response = item.get("ai_response") or {}
+        ai_flag = "yes" if item.get("ai_used") or item.get("ai_required") else "no"
+        style = "yellow" if ai_flag == "yes" else "green"
+        if item.get("status") in {"error", "missing", "overwrite-prevented"}:
+            style = "red"
+        table.add_row(
+            item["original_filename"],
+            item["new_filename"],
+            str(item["metadata_score"]),
+            ai_flag,
+            ai_response.get("provider") or "",
+            str(ai_response.get("confidence", "")),
+            style=style,
+        )
+    return table
+
+
+def _summary_table(summary: dict[str, Any]) -> Table:
+    table = Table(title="Summary")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    for key, value in summary.items():
+        table.add_row(str(key).replace("_", " "), str(value))
+    return table
+
+
+def _scan_summary(input_path: Path, config: AppConfig, recursive: bool, force_ai: bool) -> dict[str, Any]:
+    supported = scan_images(input_path, recursive=recursive)
+    unsupported_count = count_unsupported_files(input_path, recursive=recursive)
+    rows: list[dict[str, Any]] = []
+    scores: list[int] = []
+
+    for image_path in supported:
+        try:
+            metadata = extract_metadata(image_path)
+            score = score_metadata(metadata)
+            ai_required = force_ai or score < config.metadata_threshold
+            scores.append(score)
+            rows.append(
+                {
+                    "path": str(image_path),
+                    "filename": image_path.name,
+                    "metadata_score": score,
+                    "ai_required": ai_required,
+                    "status": "ok",
+                }
+            )
+        except Exception as error:
+            rows.append({"path": str(image_path), "filename": image_path.name, "metadata_score": 0, "ai_required": False, "status": f"error: {error}"})
+
+    ai_required_count = sum(1 for row in rows if row["ai_required"])
+    sufficient_count = sum(1 for row in rows if row["status"] == "ok" and not row["ai_required"])
+    return {
+        "summary": {
+            "total_files": len(supported) + unsupported_count,
+            "supported_files": len(supported),
+            "unsupported_files": unsupported_count,
+            "files_requiring_ai": ai_required_count,
+            "files_with_sufficient_metadata": sufficient_count,
+            "provider_selected": config.vision_provider,
+            "local_only": config.local_only,
+            "average_metadata_score": round(sum(scores) / len(scores), 2) if scores else 0,
+        },
+        "files": rows,
+    }
+
+
+@app.command(help="Scan supported image files, score metadata, and show whether AI would be required.")
+def scan(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to scan.")],
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Treat every supported image as requiring AI.")] = False,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write scan results to a JSON file.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    result = _scan_summary(input, cli_config, recursive=recursive, force_ai=force_ai)
+
+    console.print(_summary_table(result["summary"]))
+    table = Table(title="Metadata Scores")
+    table.add_column("File", overflow="fold")
+    table.add_column("Score", justify="right")
+    table.add_column("AI Required", justify="center")
+    table.add_column("Status")
+    for row in result["files"]:
+        style = "red" if str(row["status"]).startswith("error") else ("yellow" if row["ai_required"] else "green")
+        table.add_row(row["filename"], str(row["metadata_score"]), "yes" if row["ai_required"] else "no", row["status"], style=style)
     console.print(table)
+    _write_json(output_json, result)
+
+
+@app.command(help="Preview proposed filename changes without renaming files.")
+def preview(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to preview.")],
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Show every file as AI-required when no precomputed AI JSON is available.")] = False,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write preview manifest to a JSON file.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    result = preview_renames(input, cli_config, recursive=recursive)
     if force_ai:
-        console.print("[yellow]--force-ai was requested, but the rename engine only consumes precomputed normalized AI JSON in this phase.[/yellow]")
-    console.print(f"[cyan]Manifest:[/cyan] {result.manifest_path}")
+        for item in result.manifest["files"]:
+            item["ai_required"] = True
+
+    console.print(_preview_table(result.manifest["files"]))
+    summary = {
+        "total_renames": len(result.manifest["files"]),
+        "skipped": sum(1 for item in result.manifest["files"] if item["status"] != "planned"),
+        "ai_usage_count": sum(1 for item in result.manifest["files"] if item.get("ai_used") or item.get("ai_required")),
+        "provider_selected": cli_config.vision_provider,
+        "manifest": str(result.manifest_path),
+    }
+    console.print(_summary_table(summary))
+    if force_ai:
+        console.print("[yellow]--force-ai marks files as AI-required, but this CLI phase does not perform live AI calls.[/yellow]")
+    _write_json(output_json, result.manifest)
 
 
-@app.command()
+@app.command(help="Apply safe renames only when --apply is explicitly provided.")
 def rename(
-    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)],
-    apply: Annotated[bool, typer.Option("--apply", help="Actually rename files. Without this flag, PhotoSage only previews.")] = False,
-    force_ai: Annotated[bool, typer.Option("--force-ai")] = False,
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to rename.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Actually rename files. Required for any file changes.")] = False,
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Mark files as AI-required when no precomputed AI JSON is available.")] = False,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write rename manifest to a JSON file.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
 ) -> None:
-    """Preview or apply file renames."""
-    config = _config()
-    result = rename_files(input, config, apply=apply, force_ai=force_ai)
-    statuses: dict[str, int] = {}
+    cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    if not apply:
+        console.print(Panel("[yellow]No files were renamed. Re-run with --apply or use photosage preview first.[/yellow]", title="Safety Stop"))
+        return
+
+    started = time.perf_counter()
+    processed = 0
+
+    def on_item(item: dict[str, Any]) -> None:
+        nonlocal processed
+        processed += 1
+
+    with Progress(TextColumn("[progress.description]{task.description}"), console=console) as progress:
+        task = progress.add_task("Renaming files safely...", total=None)
+        result = rename_files(input, cli_config, apply=True, force_ai=force_ai, recursive=recursive, progress_callback=on_item)
+        progress.update(task, description=f"Processed {processed} files")
+
+    elapsed = round(time.perf_counter() - started, 2)
     for item in result.manifest["files"]:
-        statuses[item["status"]] = statuses.get(item["status"], 0) + 1
+        style = "green" if item["status"] == "renamed" else ("yellow" if item["status"] in {"unchanged", "overwrite-prevented"} else "red")
+        console.print(f"[{style}][RENAME][/{style}] old: {item['original_filename']} new: {item['new_filename']} status: {item['status']}")
 
-    action = "Renamed" if apply else "Previewed"
-    console.print(f"[green]{action} {len(result.manifest['files'])} files.[/green]")
-    for status, count in sorted(statuses.items()):
-        style = "red" if status in {"error", "missing", "overwrite-prevented"} else "cyan"
-        console.print(f"[{style}]{status}: {count}[/{style}]")
-    if force_ai and not any(item["ai_used"] for item in result.manifest["files"]):
-        console.print("[yellow]--force-ai was requested, but no normalized AI responses were supplied to the rename engine.[/yellow]")
-    console.print(f"[cyan]Manifest:[/cyan] {result.manifest_path}")
+    counts = _status_counts(result.manifest["files"])
+    summary = {
+        "renamed": counts.get("renamed", 0),
+        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0),
+        "failed": counts.get("error", 0),
+        "manifest": str(result.manifest_path),
+        "elapsed_seconds": elapsed,
+    }
+    console.print(_summary_table(summary))
+    _write_json(output_json, result.manifest)
 
 
-@app.command()
+@app.command(help="Restore original filenames from a rename manifest.")
 def undo(
-    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False)],
+    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Rename manifest to roll back.")],
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Validate and report rollback operations without moving files.")] = False,
-    verbose: Annotated[bool, typer.Option("--verbose", help="Print each rollback operation.")] = False,
+    force: Annotated[bool, typer.Option("--force", help="Skip confirmation for real undo operations.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Print each rollback operation and enable detailed logging.")] = False,
     continue_on_error: Annotated[bool, typer.Option("--continue-on-error/--stop-on-error", help="Continue processing after failed operations.")] = True,
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Accepted for command consistency. Undo uses manifest paths.")] = True,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Accepted for command consistency. Undo does not use providers.")] = None,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Accepted for command consistency. Undo does not use AI.")] = False,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Accepted for command consistency. Undo does not use providers.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write rollback summary to a JSON file.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
 ) -> None:
-    """Undo renames from a manifest."""
-    config = _config()
-    result = rollback_all(manifest, dry_run=dry_run, continue_on_error=continue_on_error)
+    _ = recursive, provider, force_ai, local_only
+    _config(config, verbose=verbose)
+
+    try:
+        if not dry_run and not force:
+            preview_result = rollback_all(manifest, dry_run=True, continue_on_error=continue_on_error)
+            console.print("[yellow]Undo preview. No files moved yet.[/yellow]")
+            console.print(_summary_table(preview_result.summary))
+            console.print(f"[cyan]Dry-run rollback report:[/cyan] {preview_result.report_path}")
+            typer.confirm("Undo will move files back to their original paths. Continue?", abort=True)
+        result = rollback_all(manifest, dry_run=dry_run, continue_on_error=continue_on_error)
+    except ManifestValidationError as error:
+        console.print(f"[red]Invalid manifest:[/red] {error}")
+        raise typer.Exit(code=1) from error
+
     if dry_run:
         console.print("[yellow][DRY RUN] No files were moved.[/yellow]")
     console.print(f"[green]Undo processed {len(result.operations)} files.[/green]")
-    for status, count in sorted(result.summary.items()):
-        style = "red" if status in {"failed", "skipped_missing", "skipped_collision"} else "cyan"
-        console.print(f"[{style}]{status}: {count}[/{style}]")
+    console.print(_summary_table(result.summary))
     if verbose:
         table = Table(title="Rollback Operations")
         table.add_column("Status")
@@ -102,6 +288,14 @@ def undo(
             table.add_row(operation.status, operation.source, operation.destination, operation.message)
         console.print(table)
     console.print(f"[cyan]Rollback report:[/cyan] {result.report_path}")
+    _write_json(
+        output_json,
+        {
+            "summary": result.summary,
+            "report_path": str(result.report_path),
+            "operations": [asdict(operation) for operation in result.operations],
+        },
+    )
 
 
 if __name__ == "__main__":

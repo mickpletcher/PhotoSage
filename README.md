@@ -156,10 +156,22 @@ Scan a folder:
 photosage scan --input ./photos
 ```
 
+Scan only the top-level folder:
+
+```powershell
+photosage scan --input ./photos --no-recursive
+```
+
 Preview proposed renames:
 
 ```powershell
 photosage preview --input ./photos
+```
+
+Export preview results:
+
+```powershell
+photosage preview --input ./photos --output-json ./preview.json
 ```
 
 Preview through the rename command:
@@ -167,6 +179,8 @@ Preview through the rename command:
 ```powershell
 photosage rename --input ./photos
 ```
+
+The rename command does not rename anything unless `--apply` is present. Without `--apply`, it exits with a safety warning.
 
 Apply renames:
 
@@ -178,6 +192,12 @@ Force AI fallback:
 
 ```powershell
 photosage preview --input ./photos --force-ai
+```
+
+Override provider and block cloud providers:
+
+```powershell
+photosage scan --input ./photos --provider ollama --local-only
 ```
 
 Undo a rename run:
@@ -197,6 +217,28 @@ Stop on the first rollback error:
 ```powershell
 photosage undo --manifest ./manifests/rename_manifest.json --stop-on-error
 ```
+
+All main commands support:
+
+- `--recursive` and `--no-recursive`
+- `--provider anthropic|openai|gemini|ollama`
+- `--force-ai`
+- `--local-only`
+- `--verbose`
+- `--output-json ./file.json`
+- `--config ./config/settings.yaml`
+
+`undo` accepts these shared options for command consistency, but it restores from manifest paths and does not call providers or AI.
+
+## CLI Output
+
+PhotoSage uses Rich tables, panels, progress indicators, and colored statuses.
+
+- Green means success or metadata-only handling.
+- Yellow means warning, dry run, or AI-required handling.
+- Red means errors, skipped files, missing files, or collisions.
+
+Verbose mode enables console logs. File logs are always written to `logs/photosage.log`.
 
 ## Rename Workflow
 

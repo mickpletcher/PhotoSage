@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from photosage.config import AppConfig
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
@@ -37,6 +37,7 @@ def build_rename_manifest(
     force_ai: bool = False,
     dry_run: bool = True,
     ai_responses: dict[str, dict[str, Any]] | None = None,
+    recursive: bool = True,
 ) -> dict[str, Any]:
     """Build proposed rename operations without modifying files or calling providers."""
     files: list[dict[str, Any]] = []
@@ -47,10 +48,11 @@ def build_rename_manifest(
     if force_ai and not ai_responses:
         logger.info("force_ai requested, but renamer received no normalized AI responses")
 
-    for image_path in scan_images(input_directory):
+    for image_path in scan_images(input_directory, recursive=recursive):
         metadata = extract_metadata(image_path)
         metadata_score = score_metadata(metadata)
         ai_response = _ai_for_path(image_path, ai_responses)
+        ai_required = force_ai or metadata_score < config.metadata_threshold
         ai_used = ai_response is not None
         if ai_response and not provider_used:
             provider_used = ai_response.get("provider")
@@ -79,6 +81,7 @@ def build_rename_manifest(
                 "original_filename": image_path.name,
                 "new_filename": new_path.name,
                 "metadata_score": metadata_score,
+                "ai_required": ai_required,
                 "ai_used": ai_used,
                 "status": "planned" if dry_run else "pending",
                 "metadata": metadata,
@@ -99,9 +102,10 @@ def preview_renames(
     input_directory: Path,
     config: AppConfig,
     ai_responses: dict[str, dict[str, Any]] | None = None,
+    recursive: bool = True,
 ) -> RenameResult:
     """Preview proposed rename operations and write a dry-run manifest."""
-    manifest = build_rename_manifest(input_directory, config, dry_run=True, ai_responses=ai_responses)
+    manifest = build_rename_manifest(input_directory, config, dry_run=True, ai_responses=ai_responses, recursive=recursive)
     manifest_path = write_manifest(manifest, config.manifest_directory)
     logger.info("preview manifest generated: %s", manifest_path)
     return RenameResult(manifest=manifest, manifest_path=manifest_path)
@@ -111,9 +115,11 @@ def apply_renames(
     input_directory: Path,
     config: AppConfig,
     ai_responses: dict[str, dict[str, Any]] | None = None,
+    recursive: bool = True,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> RenameResult:
     """Apply safe rename operations after writing a manifest."""
-    manifest = build_rename_manifest(input_directory, config, dry_run=False, ai_responses=ai_responses)
+    manifest = build_rename_manifest(input_directory, config, dry_run=False, ai_responses=ai_responses, recursive=recursive)
     manifest_path = write_manifest(manifest, config.manifest_directory)
 
     for item in manifest["files"]:
@@ -123,14 +129,20 @@ def apply_renames(
         if original_path == new_path:
             item["status"] = "unchanged"
             logger.info("rename skipped unchanged path: %s", original_path)
+            if progress_callback:
+                progress_callback(item)
             continue
         if not original_path.exists():
             item["status"] = "missing"
             logger.warning("rename skipped missing file: %s", original_path)
+            if progress_callback:
+                progress_callback(item)
             continue
         if new_path.exists():
             item["status"] = "overwrite-prevented"
             logger.warning("rename skipped overwrite risk: %s", new_path)
+            if progress_callback:
+                progress_callback(item)
             continue
 
         try:
@@ -140,10 +152,14 @@ def apply_renames(
             item["status"] = "error"
             item["error"] = str(error)
             logger.error("rename failed: %s -> %s error=%s", original_path, new_path, error)
+            if progress_callback:
+                progress_callback(item)
             continue
 
         item["status"] = "renamed"
         logger.info("renamed file original=%s new=%s", original_path, new_path)
+        if progress_callback:
+            progress_callback(item)
 
     write_manifest(manifest, config.manifest_directory, manifest_path)
     return RenameResult(manifest=manifest, manifest_path=manifest_path)
@@ -161,10 +177,12 @@ def rename_files(
     apply: bool = False,
     force_ai: bool = False,
     ai_responses: dict[str, dict[str, Any]] | None = None,
+    recursive: bool = True,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> RenameResult:
     """Preview or apply safe photo renames."""
     if apply:
-        return apply_renames(input_directory, config, ai_responses=ai_responses)
+        return apply_renames(input_directory, config, ai_responses=ai_responses, recursive=recursive, progress_callback=progress_callback)
     if force_ai and not ai_responses:
         logger.info("force_ai requested, but no normalized AI responses were supplied")
-    return preview_renames(input_directory, config, ai_responses=ai_responses)
+    return preview_renames(input_directory, config, ai_responses=ai_responses, recursive=recursive)

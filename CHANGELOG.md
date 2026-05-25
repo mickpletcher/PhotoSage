@@ -8,6 +8,8 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Built the phase 6 CLI with Rich scan, preview, rename, and undo screens, provider overrides, local-only mode, recursive controls, verbose logging, JSON exports, and apply safety enforcement.
+- Added CLI tests for argument handling, provider overrides, JSON output, rename safety, preview output, and undo dry-run behavior.
 - Built the phase 5 undo system with manifest parsing, rollback validation, dry-run support, collision prevention, partial rollback handling, and rollback reports.
 - Added `photosage undo` options for `--dry-run`, `--verbose`, and `--continue-on-error/--stop-on-error`.
 - Added rollback report generation under `rollback_reports/` and tests for malformed manifests, invalid paths, collisions, dry runs, partial rollback, and report output.
