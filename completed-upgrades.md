@@ -28,3 +28,6 @@ When an upgrade is completed:
 - Added Lightroom export folder support.
 - Added the repo spec workflow.
 - Added `assessment.md` for future agents.
+- Added GitHub Actions CI for tests, basic lint checks, docs links, and spec folder checks.
+- Added manifest integrity validation.
+- Hardened local-only provider selection and CLI visibility.

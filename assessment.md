@@ -18,6 +18,7 @@ The project is no longer just a scaffold. The main architecture is in place.
 - Safe rename preview
 - Safe apply mode
 - Manifest generation
+- Manifest integrity validation
 - Undo and rollback reports
 - Provider abstraction
 - Ollama local provider support
@@ -73,6 +74,7 @@ photosage scan --input ./photos
 photosage preview --input ./photos
 photosage rename --input ./photos --apply
 photosage undo --manifest ./manifests/rename_manifest.json
+photosage manifest validate --manifest ./manifests/rename_manifest.json
 photosage providers
 photosage ollama models
 photosage lightroom-process --input ./LightroomExports --preview
@@ -111,13 +113,11 @@ The skipped test is expected when optional GUI pieces are unavailable.
 Good next work:
 
 1. Implement LM Studio provider from `specs/001-lm-studio-provider/`.
-2. Add GitHub Actions for tests and docs checks.
-3. Add stronger end-to-end CLI smoke tests.
-4. Harden local-only provider behavior.
-5. Add reverse geocoding cache.
-6. Improve GUI performance for large folders.
-7. Add duplicate detection.
-8. Add folder watcher mode.
+2. Add stronger end-to-end CLI smoke tests.
+3. Add reverse geocoding cache.
+4. Improve GUI performance for large folders.
+5. Add duplicate detection.
+6. Add folder watcher mode.
 
 ## Future Agent Checklist
 

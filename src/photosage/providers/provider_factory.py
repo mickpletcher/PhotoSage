@@ -22,6 +22,12 @@ class ProviderFactory:
     }
 
     @classmethod
+    def is_local_provider(cls, name: str) -> bool:
+        """Return true when a provider is registered as local."""
+        provider_class = cls.PROVIDERS.get(name.lower().strip())
+        return bool(provider_class and getattr(provider_class, "is_local", False))
+
+    @classmethod
     def create(cls, name: str, config: AppConfig | None = None, settings: dict[str, Any] | None = None) -> VisionProvider:
         """Instantiate a provider by name."""
         provider_name = name.lower().strip()
@@ -33,4 +39,3 @@ class ProviderFactory:
         if provider_settings is None and config is not None:
             provider_settings = config.provider_settings.get(provider_name, {})
         return provider_class(settings=provider_settings or {})
-

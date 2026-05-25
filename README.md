@@ -122,6 +122,12 @@ Preview undo:
 photosage undo --manifest ./manifests/rename_manifest.json --dry-run
 ```
 
+Validate a manifest before undo:
+
+```powershell
+photosage manifest validate --manifest ./manifests/rename_manifest.json
+```
+
 Undo for real:
 
 ```powershell
@@ -172,6 +178,8 @@ Check provider status:
 ```powershell
 photosage providers
 ```
+
+Local-only mode is shown in command summaries. When it is enabled, cloud providers are blocked from fallback.
 
 Use Ollama only:
 
@@ -301,6 +309,26 @@ rollback_reports/
 
 Keep these files if you may need to undo a rename.
 
+Validate a manifest:
+
+```powershell
+photosage manifest validate --manifest ./manifests/rename_manifest.json
+```
+
+Add hashes for existing referenced files:
+
+```powershell
+photosage manifest validate --manifest ./manifests/rename_manifest.json --hashes
+```
+
+The validator checks:
+
+- missing files
+- unsafe paths
+- undo collisions
+- sidecar mismatches
+- optional SHA256 hashes
+
 ## Project Docs
 
 - [assessment.md](assessment.md): Current project state for future agents.
@@ -315,6 +343,13 @@ Keep these files if you may need to undo a rename.
 ```powershell
 python -m pytest
 ```
+
+CI also runs:
+
+- pytest
+- basic Ruff lint checks
+- Markdown link checks
+- spec folder checks
 
 ## Privacy Notes
 

@@ -156,6 +156,34 @@ def test_cli_undo_dry_run_does_not_move(tmp_path):
     assert not original.exists()
 
 
+def test_cli_manifest_validate_outputs_json(tmp_path):
+    config = tmp_path / "config.yaml"
+    output = tmp_path / "manifest-validation.json"
+    _write_config(config)
+    original = tmp_path / "photos" / "original.jpg"
+    renamed = tmp_path / "photos" / "renamed.jpg"
+    renamed.parent.mkdir(parents=True)
+    renamed.write_text("photo", encoding="utf-8")
+    manifest = create_manifest(
+        input_directory=renamed.parent,
+        dry_run=False,
+        provider_used=None,
+        metadata_threshold=70,
+        files=[{"original_path": str(original), "new_path": str(renamed), "status": "renamed"}],
+    )
+    manifest_path = write_manifest(manifest, tmp_path)
+
+    result = runner.invoke(
+        app,
+        ["manifest", "validate", "--manifest", str(manifest_path), "--output-json", str(output), "--config", str(config)],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert data["valid"] is True
+    assert data["summary"]["files"] == 1
+
+
 def test_cli_ollama_models_lists_installed_models(monkeypatch, tmp_path):
     config = tmp_path / "config.yaml"
     _write_config(config)

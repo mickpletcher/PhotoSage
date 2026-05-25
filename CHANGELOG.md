@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added GitHub Actions CI for pytest, basic Ruff lint checks, Markdown link checks, and spec folder checks.
+- Added `photosage manifest validate` with missing file checks, safe path validation, sidecar mismatch detection, undo collision warnings, and optional SHA256 hashes.
+- Hardened local-only provider selection with registered local provider detection, blocked provider audit logs, and local-only status in CLI summaries.
 - Added a concise novice-focused documentation pass across README, Lightroom docs, assessment, specs, and completed upgrade tracking.
 - Added a repo-local specs workflow under `specs/` with a seeded `001-lm-studio-provider` requirements, plan, and task package.
 - Added Lightroom export workflow support with XMP sidecar parsing, embedded XMP fallback, metadata score bonuses, sidecar synchronization, optional folder organization, catalog safety blocking, Lightroom presets, and `photosage lightroom-process`.

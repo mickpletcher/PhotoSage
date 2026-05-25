@@ -34,9 +34,13 @@ class ProviderManager:
                 deduped.append(name)
 
         if self.config.local_only:
-            deduped = [name for name in deduped if name in LOCAL_PROVIDERS]
+            blocked = [name for name in deduped if name not in LOCAL_PROVIDERS and not ProviderFactory.is_local_provider(name)]
+            deduped = [name for name in deduped if name in LOCAL_PROVIDERS or ProviderFactory.is_local_provider(name)]
+            if blocked:
+                logger.info("local_only blocked providers: %s", ",".join(blocked))
             if not deduped:
                 deduped = ["ollama"]
+            logger.info("local_only provider order: %s", ",".join(deduped))
         return deduped
 
     def analyze_image(self, image_path: Path, metadata: dict[str, Any]) -> dict[str, Any]:
@@ -46,7 +50,7 @@ class ProviderManager:
         for provider_name in self.provider_order():
             try:
                 provider = ProviderFactory.create(provider_name, self.config)
-                logger.info("provider selected: %s local=%s", provider.provider_name, provider.is_local)
+                logger.info("provider selected: %s local=%s local_only=%s", provider.provider_name, provider.is_local, self.config.local_only)
                 started = time.perf_counter()
                 response = run_with_retries(
                     lambda provider=provider: provider.analyze_image(image_path, metadata),
@@ -61,4 +65,3 @@ class ProviderManager:
                 continue
 
         raise ProviderUnavailableError(f"No provider succeeded: {', '.join(errors)}")
-

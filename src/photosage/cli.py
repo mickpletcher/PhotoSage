@@ -18,6 +18,7 @@ from photosage.lightroom.exporter import process_lightroom_export
 from photosage.logging_config import configure_logging
 from photosage.manifest.manifest_reader import ManifestValidationError
 from photosage.manifest.undo import rollback_all
+from photosage.manifest.validator import validate_manifest_integrity
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
 from photosage.providers.healthcheck import check_providers, list_ollama_models, ollama_info
@@ -31,7 +32,9 @@ app = typer.Typer(
     epilog="Examples: photosage scan --input ./photos | photosage preview --input ./photos | photosage rename --input ./photos --apply | photosage undo --manifest ./manifests/file.json",
 )
 ollama_app = typer.Typer(help="Inspect local Ollama vision model support.")
+manifest_app = typer.Typer(help="Inspect and validate PhotoSage manifests.")
 app.add_typer(ollama_app, name="ollama")
+app.add_typer(manifest_app, name="manifest")
 console = Console()
 
 
@@ -210,6 +213,38 @@ def ollama_info_command(
     console.print(table)
 
 
+@manifest_app.command("validate", help="Validate a manifest without moving files.")
+def manifest_validate(
+    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Manifest file to validate.")],
+    hashes: Annotated[bool, typer.Option("--hashes", help="Compute SHA256 hashes for existing referenced files.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write validation report to JSON.")] = None,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Print validation issues.")] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    _config(config, verbose=verbose)
+    report = validate_manifest_integrity(manifest, include_hashes=hashes)
+
+    style = "green" if report.valid else "red"
+    console.print(f"[{style}]Manifest valid: {report.valid}[/{style}]")
+    console.print(_summary_table(report.summary))
+    if verbose or not report.valid:
+        table = Table(title="Manifest Issues")
+        table.add_column("Severity")
+        table.add_column("Code")
+        table.add_column("Index", justify="right")
+        table.add_column("Path", overflow="fold")
+        table.add_column("Message", overflow="fold")
+        for issue in report.issues:
+            issue_style = "red" if issue.severity == "error" else "yellow"
+            table.add_row(issue.severity, issue.code, "" if issue.index is None else str(issue.index), issue.path, issue.message, style=issue_style)
+        console.print(table)
+    if hashes:
+        console.print(f"[cyan]Hashes computed:[/cyan] {len(report.hashes)}")
+    _write_json(output_json, report.to_dict())
+    if not report.valid:
+        raise typer.Exit(code=1)
+
+
 @app.command(help="Scan supported image files, score metadata, and show whether AI would be required.")
 def scan(
     input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to scan.")],
@@ -260,6 +295,7 @@ def preview(
         "skipped": sum(1 for item in result.manifest["files"] if item["status"] != "planned"),
         "ai_usage_count": sum(1 for item in result.manifest["files"] if item.get("ai_used") or item.get("ai_required")),
         "provider_selected": cli_config.vision_provider,
+        "local_only": cli_config.local_only,
         "manifest": str(result.manifest_path),
     }
     console.print(_summary_table(summary))
@@ -309,6 +345,8 @@ def rename(
         "failed": counts.get("error", 0),
         "manifest": str(result.manifest_path),
         "elapsed_seconds": elapsed,
+        "provider_selected": cli_config.vision_provider,
+        "local_only": cli_config.local_only,
     }
     console.print(_summary_table(summary))
     _write_json(output_json, result.manifest)
@@ -383,6 +421,8 @@ def lightroom_process(
         "xmp_sidecars": sum(1 for item in result.manifest["files"] if item.get("xmp_detected")),
         "organization_applied": result.manifest.get("organization_applied"),
         "preset": result.manifest.get("preset") or "",
+        "provider_selected": cli_config.vision_provider,
+        "local_only": cli_config.local_only,
         "manifest": str(result.manifest_path),
     }
     console.print(_summary_table(summary))
