@@ -22,6 +22,7 @@ The project is no longer just a scaffold. The main architecture is in place.
 - Undo and rollback reports
 - Provider abstraction
 - Ollama local provider support
+- Live provider analysis during preview and apply planning
 - Lightroom export folder support
 - XMP sidecar parsing and rename sync
 - Screenshot and document image labeling
@@ -32,8 +33,8 @@ The project is no longer just a scaffold. The main architecture is in place.
 1. Scan supported images.
 2. Extract local metadata.
 3. Score metadata quality.
-4. Mark files as AI-needed when metadata is weak or forced.
-5. Normalize AI output when provider data is supplied.
+4. Call the configured provider when metadata is weak or AI is forced.
+5. Normalize AI output.
 6. Build filenames locally.
 7. Preview changes.
 8. Write a manifest.
@@ -114,7 +115,7 @@ The skipped test is expected when optional GUI pieces are unavailable.
 Good next work:
 
 1. Implement LM Studio provider from `specs/001-lm-studio-provider/`.
-2. Add stronger end-to-end CLI smoke tests.
+2. Add stronger end-to-end CLI smoke tests around provider-backed preview.
 3. Add reverse geocoding cache.
 4. Improve GUI performance for large folders.
 5. Add duplicate detection.

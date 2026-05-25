@@ -32,3 +32,4 @@ When an upgrade is completed:
 - Added manifest integrity validation.
 - Hardened local-only provider selection and CLI visibility.
 - Added screenshot and document mode for mixed image libraries.
+- Added live AI analysis pipeline for preview and apply planning.

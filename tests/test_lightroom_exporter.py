@@ -91,7 +91,7 @@ def test_cli_lightroom_process_preview_outputs_json(tmp_path):
     _write_xmp(photo.with_suffix(".xmp"))
     config.write_text(
         f"""
-metadata_threshold: 70
+metadata_threshold: 0
 manifest_directory: {(tmp_path / "manifests").as_posix()}
 log_file: {(tmp_path / "logs" / "photosage.log").as_posix()}
 filename_format: "{{date}}_{{location}}_{{subject}}_{{context}}_{{counter}}"

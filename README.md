@@ -2,7 +2,7 @@
 
 PhotoSage is a safe photo renaming tool.
 
-It reads photo metadata first. The provider system is ready for AI fallback, but the safe rename workflow still previews and applies local rename plans instead of letting a model rename files.
+It reads photo metadata first. When metadata is weak, the CLI can call the configured vision provider for structured image understanding. The model never renames files directly.
 
 The main goal is simple:
 
@@ -169,7 +169,51 @@ Provider architecture exists for:
 - Gemini
 - Ollama
 
-Current CLI scan and preview commands show when AI would be needed. Rename safety still stays local and deterministic.
+Preview and rename can call the selected provider when metadata is below the configured threshold or `--force-ai` is used.
+
+The provider returns structured labels. PhotoSage still builds the filename locally.
+
+### Anthropic Cloud Example
+
+Create a local `.env` file:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `.env`:
+
+```text
+ANTHROPIC_API_KEY=your_api_key_here
+```
+
+Set the provider in [config/settings.yaml](config/settings.yaml):
+
+```yaml
+vision_provider: anthropic
+local_only: false
+
+anthropic:
+  model: claude-sonnet-4
+```
+
+Preview with live provider analysis when needed:
+
+```powershell
+photosage preview --input ./photos
+```
+
+Force provider analysis for every supported image:
+
+```powershell
+photosage preview --input ./photos --force-ai
+```
+
+Apply only after preview looks right:
+
+```powershell
+photosage rename --input ./photos --apply
+```
 
 Ollama is the local provider path. It keeps image data on your machine when used by provider workflows.
 

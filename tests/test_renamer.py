@@ -3,6 +3,8 @@ import json
 from PIL import Image
 
 from photosage.config import AppConfig
+from photosage.providers.exceptions import AuthenticationError
+from photosage.providers.provider_manager import ProviderManager
 from photosage.rename.renamer import apply_renames, preview_renames
 
 
@@ -69,3 +71,49 @@ def test_apply_renames_prevents_collision_with_existing_file(tmp_path):
 
     assert len(filenames) == 2
     assert all((tmp_path / filename).exists() for filename in filenames)
+
+
+def test_preview_renames_runs_live_ai_when_metadata_is_below_threshold(monkeypatch, tmp_path):
+    photo = tmp_path / "IMG_0001.jpg"
+    _write_image(photo)
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=100)
+
+    def fake_analyze(self, image_path, metadata):
+        return {
+            "primary_subject": "Shipping Container",
+            "activity": "Deck Construction",
+            "location_guess": "Dover TN",
+            "confidence": 0.9,
+            "provider": "anthropic",
+            "model": "claude-test",
+        }
+
+    monkeypatch.setattr(ProviderManager, "analyze_image", fake_analyze)
+
+    result = preview_renames(tmp_path, config, analyze_ai=True)
+    item = result.manifest["files"][0]
+
+    assert item["ai_required"] is True
+    assert item["ai_used"] is True
+    assert item["ai_response"]["provider"] == "anthropic"
+    assert "shipping-container" in item["new_filename"]
+    assert result.manifest["provider_used"] == "anthropic"
+
+
+def test_apply_renames_skips_when_required_ai_is_unavailable(monkeypatch, tmp_path):
+    photo = tmp_path / "IMG_0001.jpg"
+    _write_image(photo)
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=100)
+
+    def fake_analyze(self, image_path, metadata):
+        raise AuthenticationError("missing key")
+
+    monkeypatch.setattr(ProviderManager, "analyze_image", fake_analyze)
+
+    result = apply_renames(tmp_path, config, analyze_ai=True)
+    item = result.manifest["files"][0]
+
+    assert item["status"] == "ai-unavailable"
+    assert item["ai_used"] is False
+    assert "AuthenticationError" in item["ai_error"]
+    assert photo.exists()

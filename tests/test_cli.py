@@ -1,10 +1,12 @@
 import json
+import os
 from pathlib import Path
 
 from PIL import Image
 from typer.testing import CliRunner
 
 from photosage.cli import app
+from photosage.config import load_env_file
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
 
 runner = CliRunner()
@@ -17,7 +19,7 @@ def _write_config(path: Path) -> None:
     path.write_text(
         f"""
 vision_provider: anthropic
-metadata_threshold: 70
+metadata_threshold: 0
 manifest_directory: {manifest_directory}
 log_file: {log_file}
 fallback_order:
@@ -209,3 +211,15 @@ def test_cli_providers_displays_health(monkeypatch, tmp_path):
 
     assert result.exit_code == 0
     assert "ollama" in result.stdout
+
+
+def test_load_env_file_does_not_override_existing_environment(monkeypatch, tmp_path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("ANTHROPIC_API_KEY=from-file\nOPENAI_API_KEY='quoted'\n", encoding="utf-8")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "from-shell")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    load_env_file(env_path)
+
+    assert os.environ["ANTHROPIC_API_KEY"] == "from-shell"
+    assert os.environ["OPENAI_API_KEY"] == "quoted"

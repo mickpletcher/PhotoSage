@@ -14,6 +14,8 @@ from photosage.lightroom.xmp_reader import read_xmp_sidecar, sidecar_path_for_im
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
+from photosage.providers.exceptions import ProviderError
+from photosage.providers.provider_manager import ProviderManager
 from photosage.rename.duplicate_handler import existing_names, unique_destination
 from photosage.rename.filename_builder import build_filename
 from photosage.scanner import scan_images
@@ -66,6 +68,7 @@ def build_lightroom_manifest(
     ai_responses: dict[str, dict[str, Any]] | None = None,
     recursive: bool = True,
     force_catalog_modify: bool = False,
+    analyze_ai: bool = False,
 ) -> tuple[dict[str, Any], list[str]]:
     warnings = validate_lightroom_export_directory(input_directory, force_catalog_modify=force_catalog_modify)
     preset = get_preset(preset_name) if preset_name else None
@@ -77,6 +80,7 @@ def build_lightroom_manifest(
     seen: set[Path] = set()
     existing_by_directory: dict[Path, set[str]] = {}
     provider_used: str | None = None
+    provider_manager = ProviderManager(effective) if analyze_ai else None
 
     for image_path in scan_images(input_directory, recursive=recursive):
         metadata = extract_metadata(image_path)
@@ -85,6 +89,15 @@ def build_lightroom_manifest(
         metadata_score = min(100, score_metadata(merged_metadata) + lightroom_score_bonus(xmp_metadata))
         ai_response = _ai_for_path(image_path, ai_responses)
         ai_required = force_ai or metadata_score < effective.metadata_threshold
+        ai_error: str | None = None
+        ai_attempted = False
+        if ai_required and ai_response is None and provider_manager is not None:
+            ai_attempted = True
+            try:
+                ai_response = provider_manager.analyze_image(image_path, merged_metadata)
+            except ProviderError as error:
+                ai_error = f"{type(error).__name__}: {error}"
+                logger.warning("Lightroom AI analysis unavailable for %s: %s", image_path, ai_error)
         ai_used = ai_response is not None
         if ai_response and not provider_used:
             provider_used = ai_response.get("provider")
@@ -118,7 +131,7 @@ def build_lightroom_manifest(
         sidecar_path = sidecar_path_for_image(image_path)
         new_sidecar_path = new_path.with_suffix(".xmp") if sidecar_path.exists() else None
         category = category_for_photo(merged_metadata, ai_response, preset.category if preset else None)
-        status = "planned" if dry_run else "pending"
+        status = "ai-unavailable" if ai_attempted and not ai_used else ("planned" if dry_run else "pending")
 
         files.append(
             {
@@ -129,6 +142,7 @@ def build_lightroom_manifest(
                 "metadata_score": metadata_score,
                 "ai_required": ai_required,
                 "ai_used": ai_used,
+                "ai_error": ai_error,
                 "status": status,
                 "metadata": merged_metadata,
                 "ai_response": ai_response or {},
@@ -174,6 +188,11 @@ def apply_lightroom_manifest(
         sidecar_path = Path(item["xmp_path"]) if item.get("xmp_path") else None
         new_sidecar_path = Path(item["new_xmp_path"]) if item.get("new_xmp_path") else None
 
+        if item["status"] != "pending":
+            logger.warning("lightroom rename skipped status=%s path=%s", item["status"], original_path)
+            if progress_callback:
+                progress_callback(item)
+            continue
         if original_path == new_path:
             item["status"] = "unchanged"
             item["sidecar_status"] = "unchanged" if sidecar_path else "none"
@@ -232,6 +251,7 @@ def process_lightroom_export(
     ai_responses: dict[str, dict[str, Any]] | None = None,
     recursive: bool = True,
     force_catalog_modify: bool = False,
+    analyze_ai: bool = False,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> LightroomProcessResult:
     if apply and preview:
@@ -247,6 +267,7 @@ def process_lightroom_export(
         ai_responses=ai_responses,
         recursive=recursive,
         force_catalog_modify=force_catalog_modify,
+        analyze_ai=analyze_ai,
     )
     manifest_path = write_manifest(manifest, config.manifest_directory)
     logger.info("lightroom manifest generated: %s", manifest_path)

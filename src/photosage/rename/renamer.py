@@ -10,6 +10,8 @@ from photosage.manifest.manifest_writer import create_manifest, write_manifest
 from photosage.manifest.undo import undo_from_manifest
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
+from photosage.providers.exceptions import ProviderError
+from photosage.providers.provider_manager import ProviderManager
 from photosage.rename.duplicate_handler import existing_names, unique_destination
 from photosage.rename.filename_builder import build_filename
 from photosage.scanner import scan_images
@@ -38,21 +40,31 @@ def build_rename_manifest(
     dry_run: bool = True,
     ai_responses: dict[str, dict[str, Any]] | None = None,
     recursive: bool = True,
+    analyze_ai: bool = False,
 ) -> dict[str, Any]:
-    """Build proposed rename operations without modifying files or calling providers."""
+    """Build proposed rename operations without modifying files."""
     files: list[dict[str, Any]] = []
     seen: set[Path] = set()
     existing_by_directory: dict[Path, set[str]] = {}
     provider_used: str | None = None
-
-    if force_ai and not ai_responses:
-        logger.info("force_ai requested, but renamer received no normalized AI responses")
+    provider_manager = ProviderManager(config) if analyze_ai else None
 
     for image_path in scan_images(input_directory, recursive=recursive):
         metadata = extract_metadata(image_path)
         metadata_score = score_metadata(metadata)
         ai_response = _ai_for_path(image_path, ai_responses)
         ai_required = force_ai or metadata_score < config.metadata_threshold
+        ai_error: str | None = None
+        ai_attempted = False
+
+        if ai_required and ai_response is None and provider_manager is not None:
+            ai_attempted = True
+            try:
+                ai_response = provider_manager.analyze_image(image_path, metadata)
+            except ProviderError as error:
+                ai_error = f"{type(error).__name__}: {error}"
+                logger.warning("AI analysis unavailable for %s: %s", image_path, ai_error)
+
         ai_used = ai_response is not None
         if ai_response and not provider_used:
             provider_used = ai_response.get("provider")
@@ -83,7 +95,8 @@ def build_rename_manifest(
                 "metadata_score": metadata_score,
                 "ai_required": ai_required,
                 "ai_used": ai_used,
-                "status": "planned" if dry_run else "pending",
+                "ai_error": ai_error,
+                "status": "ai-unavailable" if ai_attempted and not ai_used else ("planned" if dry_run else "pending"),
                 "metadata": metadata,
                 "ai_response": ai_response or {},
             }
@@ -101,11 +114,21 @@ def build_rename_manifest(
 def preview_renames(
     input_directory: Path,
     config: AppConfig,
+    force_ai: bool = False,
     ai_responses: dict[str, dict[str, Any]] | None = None,
     recursive: bool = True,
+    analyze_ai: bool = False,
 ) -> RenameResult:
     """Preview proposed rename operations and write a dry-run manifest."""
-    manifest = build_rename_manifest(input_directory, config, dry_run=True, ai_responses=ai_responses, recursive=recursive)
+    manifest = build_rename_manifest(
+        input_directory,
+        config,
+        force_ai=force_ai,
+        dry_run=True,
+        ai_responses=ai_responses,
+        recursive=recursive,
+        analyze_ai=analyze_ai,
+    )
     manifest_path = write_manifest(manifest, config.manifest_directory)
     logger.info("preview manifest generated: %s", manifest_path)
     return RenameResult(manifest=manifest, manifest_path=manifest_path)
@@ -114,18 +137,33 @@ def preview_renames(
 def apply_renames(
     input_directory: Path,
     config: AppConfig,
+    force_ai: bool = False,
     ai_responses: dict[str, dict[str, Any]] | None = None,
     recursive: bool = True,
+    analyze_ai: bool = False,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> RenameResult:
     """Apply safe rename operations after writing a manifest."""
-    manifest = build_rename_manifest(input_directory, config, dry_run=False, ai_responses=ai_responses, recursive=recursive)
+    manifest = build_rename_manifest(
+        input_directory,
+        config,
+        force_ai=force_ai,
+        dry_run=False,
+        ai_responses=ai_responses,
+        recursive=recursive,
+        analyze_ai=analyze_ai,
+    )
     manifest_path = write_manifest(manifest, config.manifest_directory)
 
     for item in manifest["files"]:
         original_path = Path(item["original_path"])
         new_path = Path(item["new_path"])
 
+        if item["status"] != "pending":
+            logger.warning("rename skipped status=%s path=%s", item["status"], original_path)
+            if progress_callback:
+                progress_callback(item)
+            continue
         if original_path == new_path:
             item["status"] = "unchanged"
             logger.info("rename skipped unchanged path: %s", original_path)
@@ -178,11 +216,18 @@ def rename_files(
     force_ai: bool = False,
     ai_responses: dict[str, dict[str, Any]] | None = None,
     recursive: bool = True,
+    analyze_ai: bool = False,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> RenameResult:
     """Preview or apply safe photo renames."""
     if apply:
-        return apply_renames(input_directory, config, ai_responses=ai_responses, recursive=recursive, progress_callback=progress_callback)
-    if force_ai and not ai_responses:
-        logger.info("force_ai requested, but no normalized AI responses were supplied")
-    return preview_renames(input_directory, config, ai_responses=ai_responses, recursive=recursive)
+        return apply_renames(
+            input_directory,
+            config,
+            force_ai=force_ai,
+            ai_responses=ai_responses,
+            recursive=recursive,
+            analyze_ai=analyze_ai,
+            progress_callback=progress_callback,
+        )
+    return preview_renames(input_directory, config, force_ai=force_ai, ai_responses=ai_responses, recursive=recursive, analyze_ai=analyze_ai)

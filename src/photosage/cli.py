@@ -85,7 +85,7 @@ def _preview_table(files: list[dict[str, Any]], title: str = "PhotoSage Rename P
         ai_response = item.get("ai_response") or {}
         ai_flag = "yes" if item.get("ai_used") or item.get("ai_required") else "no"
         style = "yellow" if ai_flag == "yes" else "green"
-        if item.get("status") in {"error", "missing", "overwrite-prevented"}:
+        if item.get("status") in {"error", "missing", "overwrite-prevented", "ai-unavailable"}:
             style = "red"
         table.add_row(
             item["original_filename"],
@@ -284,10 +284,7 @@ def preview(
     config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
 ) -> None:
     cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
-    result = preview_renames(input, cli_config, recursive=recursive)
-    if force_ai:
-        for item in result.manifest["files"]:
-            item["ai_required"] = True
+    result = preview_renames(input, cli_config, force_ai=force_ai, recursive=recursive, analyze_ai=True)
 
     console.print(_preview_table(result.manifest["files"]))
     summary = {
@@ -299,8 +296,6 @@ def preview(
         "manifest": str(result.manifest_path),
     }
     console.print(_summary_table(summary))
-    if force_ai:
-        console.print("[yellow]--force-ai marks files as AI-required, but this CLI phase does not perform live AI calls.[/yellow]")
     _write_json(output_json, result.manifest)
 
 
@@ -330,7 +325,7 @@ def rename(
 
     with Progress(TextColumn("[progress.description]{task.description}"), console=console) as progress:
         task = progress.add_task("Renaming files safely...", total=None)
-        result = rename_files(input, cli_config, apply=True, force_ai=force_ai, recursive=recursive, progress_callback=on_item)
+        result = rename_files(input, cli_config, apply=True, force_ai=force_ai, recursive=recursive, analyze_ai=True, progress_callback=on_item)
         progress.update(task, description=f"Processed {processed} files")
 
     elapsed = round(time.perf_counter() - started, 2)
@@ -341,7 +336,7 @@ def rename(
     counts = _status_counts(result.manifest["files"])
     summary = {
         "renamed": counts.get("renamed", 0),
-        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0),
+        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0) + counts.get("ai-unavailable", 0),
         "failed": counts.get("error", 0),
         "manifest": str(result.manifest_path),
         "elapsed_seconds": elapsed,
@@ -396,6 +391,7 @@ def lightroom_process(
                 force_ai=force_ai,
                 recursive=recursive,
                 force_catalog_modify=force_catalog_modify,
+                analyze_ai=True,
                 progress_callback=on_item if apply else None,
             )
             progress.update(task, description=f"Processed {processed if apply else len(result.manifest['files'])} files")
@@ -417,7 +413,7 @@ def lightroom_process(
         "files": len(result.manifest["files"]),
         "renamed": counts.get("renamed", 0),
         "planned": counts.get("planned", 0),
-        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0),
+        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0) + counts.get("ai-unavailable", 0),
         "xmp_sidecars": sum(1 for item in result.manifest["files"] if item.get("xmp_detected")),
         "organization_applied": result.manifest.get("organization_applied"),
         "preset": result.manifest.get("preset") or "",

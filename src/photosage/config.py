@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,7 @@ class AppConfig:
 
 def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
     """Load PhotoSage settings from YAML."""
+    load_env_file(Path(".env"))
     if not config_path.exists():
         return AppConfig()
 
@@ -85,3 +87,18 @@ def save_config(config: AppConfig, config_path: Path = Path("config/settings.yam
     config_path.parent.mkdir(parents=True, exist_ok=True)
     with config_path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(config_to_dict(config), handle, sort_keys=False)
+
+
+def load_env_file(env_path: Path = Path(".env")) -> None:
+    """Load simple KEY=VALUE pairs from a local env file without overriding the shell."""
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value

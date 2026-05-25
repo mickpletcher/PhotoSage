@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added live AI analysis during preview and apply planning for files below the metadata threshold or when `--force-ai` is used.
+- Added safe provider failure handling with `ai-unavailable` manifest status so apply mode skips files that required AI but could not be analyzed.
+- Added lightweight `.env` loading for local provider API keys without overriding shell environment variables.
 - Added screenshot and document mode with local metadata labels, source app detection, document type hints, OCR summary metadata support, and new filename tokens.
 - Added GitHub Actions CI for pytest, basic Ruff lint checks, Markdown link checks, and spec folder checks.
 - Added `photosage manifest validate` with missing file checks, safe path validation, sidecar mismatch detection, undo collision warnings, and optional SHA256 hashes.
