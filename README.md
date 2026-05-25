@@ -186,6 +186,18 @@ Undo a rename run:
 photosage undo --manifest ./manifests/rename_manifest.json
 ```
 
+Preview undo without moving files:
+
+```powershell
+photosage undo --manifest ./manifests/rename_manifest.json --dry-run --verbose
+```
+
+Stop on the first rollback error:
+
+```powershell
+photosage undo --manifest ./manifests/rename_manifest.json --stop-on-error
+```
+
 ## Rename Workflow
 
 The rename engine does not call live LLM providers. It works from extracted metadata, optional normalized AI classification JSON, and local filesystem state.
@@ -226,7 +238,7 @@ Collision handling never overwrites files. PhotoSage scans target names once per
 2026-05-25_dover-tn_deck_002.jpg
 ```
 
-Undo reads the manifest and safely reverses renamed files. It skips missing files, prevents overwrite conflicts, supports partial rollback, and logs every result.
+Undo reads the manifest and safely reverses renamed files. It skips missing files, prevents overwrite conflicts, supports partial rollback, writes a rollback report, and logs every result.
 
 ## Filename Format
 
@@ -286,6 +298,34 @@ The manifest records:
 - status
 
 Undo reads the manifest, skips missing files, prevents overwrites, and logs each result.
+
+Rollback reports are written under:
+
+```text
+rollback_reports/
+```
+
+Report filename format:
+
+```text
+rollback_YYYYMMDD_HHMMSS.json
+```
+
+Rollback statuses:
+
+- `restored`: file was moved back to its original path, or dry run verified that it could be restored.
+- `skipped_missing`: renamed file was missing.
+- `skipped_collision`: original path already exists, so PhotoSage did not overwrite it.
+- `failed`: manifest entry was invalid, unsafe, or not rollbackable.
+
+Undo safety rules:
+
+- Never overwrite existing files.
+- Never delete files.
+- Do not append counters during undo.
+- Reject malformed manifests.
+- Reject path traversal and paths outside the manifest input directory.
+- Continue processing remaining entries unless `--stop-on-error` is used.
 
 ## Logs
 

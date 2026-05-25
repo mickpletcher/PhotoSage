@@ -25,6 +25,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+!src/photosage/manifest/
+!src/photosage/manifest/*.py
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
@@ -202,6 +204,7 @@ cython_debug/
 # Project artifacts
 manifests/
 logs/
+rollback_reports/
 future-upgrades.md
 prompts/*
 !prompts/

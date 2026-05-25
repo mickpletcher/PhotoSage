@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Built the phase 5 undo system with manifest parsing, rollback validation, dry-run support, collision prevention, partial rollback handling, and rollback reports.
+- Added `photosage undo` options for `--dry-run`, `--verbose`, and `--continue-on-error/--stop-on-error`.
+- Added rollback report generation under `rollback_reports/` and tests for malformed manifests, invalid paths, collisions, dry runs, partial rollback, and report output.
 - Built the phase 4 rename engine with deterministic filename building, hardened sanitization, cached collision prevention, dry-run previews, apply mode, manifests, and rollback support.
 - Added Rich CLI output for scan, preview, rename, and undo summaries.
 - Added tests for rename preview, apply, rollback, Unicode sanitization, reserved Windows names, duplicate handling, and dry-run undo behavior.

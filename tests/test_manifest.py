@@ -33,7 +33,8 @@ def test_undo_restores_file_from_manifest(tmp_path):
 
     results = undo_from_manifest(manifest_path)
 
-    assert results == [{"path": str(original), "status": "restored"}]
+    assert results[0]["path"] == str(original)
+    assert results[0]["status"] == "restored"
     assert original.exists()
     assert not renamed.exists()
 
@@ -54,6 +55,7 @@ def test_undo_prevents_overwrite(tmp_path):
 
     results = undo_from_manifest(manifest_path)
 
-    assert results == [{"path": str(renamed), "status": "overwrite-prevented"}]
+    assert results[0]["path"] == str(original)
+    assert results[0]["source"] == str(renamed)
+    assert results[0]["status"] == "skipped_collision"
     assert renamed.exists()
-

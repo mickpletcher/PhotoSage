@@ -9,7 +9,7 @@ from rich.table import Table
 
 from photosage.config import load_config
 from photosage.logging_config import configure_logging
-from photosage.manifest.undo import undo_from_manifest
+from photosage.manifest.undo import rollback_all
 from photosage.rename.renamer import preview_renames, rename_files
 from photosage.scanner import scan_images
 
@@ -77,17 +77,31 @@ def rename(
 
 
 @app.command()
-def undo(manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False)]) -> None:
+def undo(
+    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False)],
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Validate and report rollback operations without moving files.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Print each rollback operation.")] = False,
+    continue_on_error: Annotated[bool, typer.Option("--continue-on-error/--stop-on-error", help="Continue processing after failed operations.")] = True,
+) -> None:
     """Undo renames from a manifest."""
     config = _config()
-    results = undo_from_manifest(manifest)
-    statuses: dict[str, int] = {}
-    for result in results:
-        statuses[result["status"]] = statuses.get(result["status"], 0) + 1
-    console.print(f"[green]Undo processed {len(results)} files.[/green]")
-    for status, count in sorted(statuses.items()):
-        style = "red" if status in {"error", "missing", "overwrite-prevented"} else "cyan"
+    result = rollback_all(manifest, dry_run=dry_run, continue_on_error=continue_on_error)
+    if dry_run:
+        console.print("[yellow][DRY RUN] No files were moved.[/yellow]")
+    console.print(f"[green]Undo processed {len(result.operations)} files.[/green]")
+    for status, count in sorted(result.summary.items()):
+        style = "red" if status in {"failed", "skipped_missing", "skipped_collision"} else "cyan"
         console.print(f"[{style}]{status}: {count}[/{style}]")
+    if verbose:
+        table = Table(title="Rollback Operations")
+        table.add_column("Status")
+        table.add_column("Source", overflow="fold")
+        table.add_column("Destination", overflow="fold")
+        table.add_column("Message", overflow="fold")
+        for operation in result.operations:
+            table.add_row(operation.status, operation.source, operation.destination, operation.message)
+        console.print(table)
+    console.print(f"[cyan]Rollback report:[/cyan] {result.report_path}")
 
 
 if __name__ == "__main__":
