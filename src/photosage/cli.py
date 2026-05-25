@@ -13,6 +13,8 @@ from rich.progress import Progress, TextColumn
 from rich.table import Table
 
 from photosage.config import AppConfig, load_config
+from photosage.lightroom.catalog_safety import CatalogSafetyError
+from photosage.lightroom.exporter import process_lightroom_export
 from photosage.logging_config import configure_logging
 from photosage.manifest.manifest_reader import ManifestValidationError
 from photosage.manifest.undo import rollback_all
@@ -309,6 +311,83 @@ def rename(
         "elapsed_seconds": elapsed,
     }
     console.print(_summary_table(summary))
+    _write_json(output_json, result.manifest)
+
+
+@app.command("lightroom-process", help="Process Lightroom export folders with XMP sidecar preservation.")
+def lightroom_process(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Lightroom export directory to process.")],
+    preview: Annotated[bool, typer.Option("--preview", help="Preview Lightroom rename and organization operations.")] = False,
+    apply: Annotated[bool, typer.Option("--apply", help="Actually rename exported files and matching XMP sidecars.")] = False,
+    organize: Annotated[bool, typer.Option("--organize", help="Organize output into year/month/category folders.")] = False,
+    preset: Annotated[Optional[str], typer.Option("--preset", help="Lightroom preset such as travel, astronomy, construction, metadata-only, or ai-heavy.")] = None,
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Mark files as AI-required even when metadata is sufficient.")] = False,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
+    force_catalog_modify: Annotated[bool, typer.Option("--force-catalog-modify", help="Allow processing inside probable Lightroom catalog paths. Not recommended.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write Lightroom manifest to a JSON file.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    if apply and preview:
+        console.print("[red]Choose either --preview or --apply, not both.[/red]")
+        raise typer.Exit(code=1)
+    if not apply and not preview:
+        preview = True
+
+    processed = 0
+
+    def on_item(item: dict[str, Any]) -> None:
+        nonlocal processed
+        processed += 1
+        style = "green" if item.get("status") == "renamed" else ("yellow" if item.get("status") != "error" else "red")
+        console.print(f"[{style}][LIGHTROOM][/{style}] old: {item['original_filename']} new: {item['new_filename']} status: {item['status']}")
+
+    try:
+        with Progress(TextColumn("[progress.description]{task.description}"), console=console) as progress:
+            task = progress.add_task("Processing Lightroom export...", total=None)
+            result = process_lightroom_export(
+                input_directory=input,
+                config=cli_config,
+                preview=preview,
+                apply=apply,
+                organize=organize,
+                preset_name=preset,
+                force_ai=force_ai,
+                recursive=recursive,
+                force_catalog_modify=force_catalog_modify,
+                progress_callback=on_item if apply else None,
+            )
+            progress.update(task, description=f"Processed {processed if apply else len(result.manifest['files'])} files")
+    except CatalogSafetyError as error:
+        console.print(f"[red]Lightroom catalog safety block:[/red] {error}")
+        console.print("[yellow]Export photos to a separate folder or pass --force-catalog-modify only if you understand the catalog reference risk.[/yellow]")
+        raise typer.Exit(code=1) from error
+    except ValueError as error:
+        console.print(f"[red]Lightroom processing failed:[/red] {error}")
+        raise typer.Exit(code=1) from error
+
+    if result.warnings:
+        console.print(Panel("\n".join(result.warnings), title="Catalog Safety Warnings", style="yellow"))
+
+    console.print(_preview_table(result.manifest["files"], title="Lightroom Export Processing"))
+    counts = _status_counts(result.manifest["files"])
+    summary = {
+        "mode": "apply" if apply else "preview",
+        "files": len(result.manifest["files"]),
+        "renamed": counts.get("renamed", 0),
+        "planned": counts.get("planned", 0),
+        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0),
+        "xmp_sidecars": sum(1 for item in result.manifest["files"] if item.get("xmp_detected")),
+        "organization_applied": result.manifest.get("organization_applied"),
+        "preset": result.manifest.get("preset") or "",
+        "manifest": str(result.manifest_path),
+    }
+    console.print(_summary_table(summary))
+    if not apply:
+        console.print("[yellow]Preview only. Re-run with --apply to rename exported files and synchronized XMP sidecars.[/yellow]")
     _write_json(output_json, result.manifest)
 
 

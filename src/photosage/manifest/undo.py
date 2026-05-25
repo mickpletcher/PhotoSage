@@ -84,6 +84,29 @@ def perform_rollback(
     for item in manifest["files"]:
         try:
             source, destination, validation_message = validate_rollback_operation(item, base_directory)
+            sidecar_source: Path | None = None
+            sidecar_destination: Path | None = None
+            if item.get("sidecar_status") == "renamed" and item.get("new_xmp_path") and item.get("xmp_path"):
+                sidecar_source = safe_restore_path(Path(str(item["new_xmp_path"])), base_directory)
+                sidecar_destination = safe_restore_path(Path(str(item["xmp_path"])), base_directory)
+                if sidecar_destination.exists():
+                    operations.append(
+                        RollbackOperation(
+                            str(sidecar_source),
+                            str(sidecar_destination),
+                            "skipped_collision",
+                            "Sidecar original path already exists",
+                        )
+                    )
+                    operations.append(
+                        RollbackOperation(
+                            str(source),
+                            str(destination),
+                            "skipped_collision",
+                            "Image rollback skipped because sidecar would collide",
+                        )
+                    )
+                    continue
             if validation_message == "Renamed file is missing":
                 operation = RollbackOperation(str(source), str(destination), "skipped_missing", validation_message)
             elif validation_message == "Original path already exists":
@@ -93,6 +116,9 @@ def perform_rollback(
             else:
                 operation = rollback_file(source, destination, dry_run=dry_run)
             operations.append(operation)
+
+            if operation.status == "restored" and sidecar_source and sidecar_destination:
+                operations.append(rollback_file(sidecar_source, sidecar_destination, dry_run=dry_run))
 
             if operation.status == "failed" and not continue_on_error:
                 break

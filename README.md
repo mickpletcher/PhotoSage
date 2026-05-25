@@ -293,6 +293,61 @@ All main commands support:
 
 `undo` accepts these shared options for command consistency, but it restores from manifest paths and does not call providers or AI.
 
+## Lightroom Workflows
+
+PhotoSage supports Lightroom Classic export folders and XMP sidecars. It does not modify Lightroom catalog databases.
+
+Use an export first workflow:
+
+1. Export selected photos from Lightroom Classic to a separate folder.
+2. Run a PhotoSage preview against that export folder.
+3. Review proposed filenames, XMP sidecar handling, and the manifest.
+4. Apply only when the preview is correct.
+
+Preview a Lightroom export:
+
+```powershell
+photosage lightroom-process --input ./LightroomExports --preview
+```
+
+Apply safe Lightroom export renames:
+
+```powershell
+photosage lightroom-process --input ./LightroomExports --apply
+```
+
+Organize exports into year, month, and category folders:
+
+```powershell
+photosage lightroom-process --input ./LightroomExports --preview --organize
+```
+
+Use a preset:
+
+```powershell
+photosage lightroom-process --input ./LightroomExports --preview --preset astronomy
+```
+
+Lightroom mode reads `.xmp` sidecars and embedded XMP where available. It extracts title, caption, keywords, rating, color label, creator, copyright, GPS values, and Lightroom collection metadata where possible.
+
+When an image has a matching sidecar, PhotoSage keeps the association synchronized:
+
+```text
+photo.jpg
+photo.xmp
+```
+
+becomes:
+
+```text
+2026-05-25_dover-tn_container-home_001.jpg
+2026-05-25_dover-tn_container-home_001.xmp
+```
+
+Lightroom catalog safety is conservative. PhotoSage blocks probable `.lrcat`, `.lrdata`, and preview folder locations by default. Use `--force-catalog-modify` only when you understand the risk of breaking Lightroom references.
+
+More detail is in [docs/lightroom-integration.md](docs/lightroom-integration.md).
+
 ## CLI Output
 
 PhotoSage uses Rich tables, panels, progress indicators, and colored statuses.
