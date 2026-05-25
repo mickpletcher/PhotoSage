@@ -1,28 +1,50 @@
 # PhotoSage
 
-PhotoSage is a Python 3.11+ CLI for metadata first photo organization and safe intelligent file renaming.
+PhotoSage is a safe photo renaming tool.
 
-It reads local photo metadata first. It only asks a vision LLM for structured image understanding when metadata is not good enough or when `--force-ai` is used.
+It reads photo metadata first. The provider system is ready for AI fallback, but the safe rename workflow still previews and applies local rename plans instead of letting a model rename files.
 
-## Why Metadata First
+The main goal is simple:
 
-Photo metadata is usually safer, cheaper, faster, and more accurate than sending images to a model.
+```text
+IMG_4588.JPG
+```
 
-PhotoSage uses EXIF dates, GPS data, camera details, dimensions, existing keywords, and useful original filenames before any AI fallback. The default metadata threshold is `70`. Scores below that threshold can trigger the configured provider unless `local_only` is enabled.
+becomes something useful like:
 
-The metadata engine normalizes filesystem data, image dimensions, camera details, EXIF dates, GPS coordinates, altitude, GPS timestamps, title, description, keywords, and tags into a `PhotoMetadata` dataclass before the rest of the app makes decisions.
+```text
+2026-05-25_dover-tn_shipping-container_deck-project_001.jpg
+```
 
-## Core Safety Model
+## What It Does
 
-- No file is renamed unless `--apply` is passed.
-- `preview` shows proposed names without changing files.
-- `rename` without `--apply` also stays in dry run mode.
-- A manifest is written before applying renames.
+- Scans photo folders.
+- Reads EXIF, GPS, camera, date, size, and tag metadata.
+- Scores metadata quality.
+- Builds clean filenames.
+- Shows a preview before changing anything.
+- Renames only when `--apply` is used.
+- Writes a manifest before renaming.
+- Supports undo from the manifest.
+- Includes local Ollama provider support.
+- Supports Lightroom export folders and XMP sidecars.
+- Includes an early PySide6 desktop GUI.
+
+## Safety Rules
+
+PhotoSage is built to avoid data loss.
+
+- No files are renamed unless you pass `--apply`.
+- Preview mode does not change files.
 - Existing files are never overwritten.
-- Undo uses the manifest to move files back.
-- Images are not uploaded to a provider when `local_only: true`.
+- A manifest is written before renames happen.
+- Undo uses the manifest to restore names.
+- Local-only mode blocks cloud AI providers.
+- Lightroom catalog databases are never modified.
 
-## Supported Image Types
+## Supported Files
+
+PhotoSage scans:
 
 - `jpg`
 - `jpeg`
@@ -31,74 +53,133 @@ The metadata engine normalizes filesystem data, image dimensions, camera details
 - `webp`
 - `tiff`
 
-Unsupported files are skipped and logged.
+Other files are skipped.
 
-## Supported Providers
+## Install
 
-The provider system is model agnostic. Providers can be swapped by editing `config/settings.yaml`.
+From the repo root:
 
-- Anthropic Claude
-- OpenAI vision models
-- Google Gemini
-- Ollama local vision models
-
-All providers normalize output into the same internal contract:
-
-```json
-{
-  "primary_subject": "string",
-  "secondary_subject": "string",
-  "activity": "string",
-  "environment": "string",
-  "location_guess": "string",
-  "confidence": 0.0,
-  "tags": [],
-  "description": "string",
-  "provider": "string",
-  "model": "string"
-}
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python -m pip install -e .
 ```
 
-Providers classify image content only. They do not rename files, move files, or build final filenames.
+Check that the CLI works:
 
-### Fallback Behavior
+```powershell
+photosage --help
+```
 
-PhotoSage starts with `vision_provider`, then tries each configured provider in `fallback_order` if a provider fails.
+## First Safe Run
+
+Start with preview.
+
+```powershell
+photosage preview --input ./photos
+```
+
+This shows proposed filenames. It does not rename anything.
+
+When the preview looks right:
+
+```powershell
+photosage rename --input ./photos --apply
+```
+
+If something goes wrong, undo the run:
+
+```powershell
+photosage undo --manifest ./manifests/rename_manifest.json
+```
+
+Use the actual manifest file created in your `manifests/` folder.
+
+## Common Commands
+
+Scan metadata scores:
+
+```powershell
+photosage scan --input ./photos
+```
+
+Preview renames:
+
+```powershell
+photosage preview --input ./photos
+```
+
+Apply renames:
+
+```powershell
+photosage rename --input ./photos --apply
+```
+
+Preview undo:
+
+```powershell
+photosage undo --manifest ./manifests/rename_manifest.json --dry-run
+```
+
+Undo for real:
+
+```powershell
+photosage undo --manifest ./manifests/rename_manifest.json --force
+```
+
+Export command output to JSON:
+
+```powershell
+photosage preview --input ./photos --output-json ./preview.json
+```
+
+## Configuration
+
+Edit [config/settings.yaml](config/settings.yaml).
+
+Important settings:
 
 ```yaml
 vision_provider: anthropic
-
-fallback_order:
-  - anthropic
-  - openai
-  - gemini
-  - ollama
+metadata_threshold: 70
+dry_run_default: true
+local_only: false
+filename_format: "{date}_{location}_{subject}_{context}_{counter}"
 ```
 
-Retry logic handles invalid JSON, transient provider failures, timeouts, and local Ollama availability issues. Authentication and invalid configuration failures are not retried.
+`metadata_threshold` controls when a file is marked as needing AI help.
 
-### Local Only Mode
+- `70` is the default.
+- Higher values mark more files as AI-needed.
+- Lower values rely on metadata more often.
 
-When `local_only: true`, cloud providers are blocked. Only local providers such as Ollama are allowed.
+## AI Providers
 
-```yaml
-local_only: true
-vision_provider: ollama
+Provider architecture exists for:
+
+- Anthropic
+- OpenAI
+- Gemini
+- Ollama
+
+Current CLI scan and preview commands show when AI would be needed. Rename safety still stays local and deterministic.
+
+Ollama is the local provider path. It keeps image data on your machine when used by provider workflows.
+
+Check provider status:
+
+```powershell
+photosage providers
 ```
 
-This prevents PhotoSage from uploading images to Anthropic, OpenAI, or Gemini.
+Use Ollama only:
 
-### Ollama Setup
+```powershell
+photosage scan --input ./photos --provider ollama --local-only
+```
 
-Ollama runs models locally. This is the privacy-first option because image bytes stay on your machine.
-
-Install Ollama:
-
-- Windows: install from [https://ollama.com](https://ollama.com), then run commands in PowerShell.
-- macOS: install from [https://ollama.com](https://ollama.com). Apple Silicon is strongly preferred.
-- Linux: install Ollama from the official installer and make sure the service is running.
-
-Pull a local multimodal model:
+Basic Ollama setup:
 
 ```powershell
 ollama pull llava
@@ -106,18 +187,7 @@ ollama pull llava:13b
 ollama pull qwen2.5vl
 ```
 
-Supported local model targets include:
-
-- `llava`
-- `llava:13b`
-- `llava:34b`
-- `bakllava`
-- `minicpm-v`
-- `qwen2.5vl`
-- `moondream`
-- future Ollama vision models
-
-Configure Ollama in [config/settings.yaml](config/settings.yaml):
+Recommended Ollama config:
 
 ```yaml
 vision_provider: ollama
@@ -127,347 +197,79 @@ ollama:
   endpoint: http://localhost:11434
   model: llava:13b
   timeout_seconds: 180
-  healthcheck_timeout_seconds: 5
-  temperature: 0.1
-  max_dimension: 1600
-  jpeg_quality: 90
 ```
 
-Check providers:
+LM Studio support is planned in [specs/001-lm-studio-provider/spec.md](specs/001-lm-studio-provider/spec.md).
 
-```powershell
-photosage providers
-```
+## Lightroom Workflow
 
-List installed Ollama models:
+PhotoSage works with Lightroom export folders.
 
-```powershell
-photosage ollama models
-```
+Best workflow:
 
-Show best-effort Ollama diagnostics:
-
-```powershell
-photosage ollama info
-```
-
-When `local_only: true`, PhotoSage blocks cloud providers. If Ollama is unavailable, it fails safely instead of falling back to Anthropic, OpenAI, or Gemini.
-
-Recommended hardware:
-
-- Minimum: 16 GB RAM
-- Recommended: 32 GB RAM, Apple Silicon, or an NVIDIA GPU
-- High performance: 64 GB or more RAM, RTX 3090 or RTX 4090, or Mac Studio Ultra
-
-Model notes:
-
-- `llava` is a practical first test model.
-- `llava:13b` is a stronger default if you have enough memory.
-- `qwen2.5vl` is a good candidate for more detailed visual reasoning.
-- Larger models need more RAM or VRAM and may run slowly on CPU only.
-
-## Install
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m pip install -e .
-```
-
-## Configuration
-
-Edit [config/settings.yaml](config/settings.yaml).
-
-```yaml
-vision_provider: anthropic
-metadata_threshold: 70
-dry_run_default: true
-local_only: false
-
-fallback_order:
-  - anthropic
-  - openai
-  - gemini
-  - ollama
-
-filename_format: "{date}_{location}_{subject}_{context}_{counter}"
-provider_retry_count: 3
-provider_retry_initial_delay: 0.5
-
-anthropic:
-  model: claude-sonnet-4
-
-openai:
-  model: gpt-4.1-mini
-
-gemini:
-  model: gemini-2.5-pro
-
-ollama:
-  endpoint: http://localhost:11434
-  model: llava
-```
-
-Copy `.env.example` to `.env` if you later add real provider API calls. Do not commit API keys.
-
-## CLI Examples
-
-Scan a folder:
-
-```powershell
-photosage scan --input ./photos
-```
-
-Scan only the top-level folder:
-
-```powershell
-photosage scan --input ./photos --no-recursive
-```
-
-Preview proposed renames:
-
-```powershell
-photosage preview --input ./photos
-```
-
-Export preview results:
-
-```powershell
-photosage preview --input ./photos --output-json ./preview.json
-```
-
-Preview through the rename command:
-
-```powershell
-photosage rename --input ./photos
-```
-
-The rename command does not rename anything unless `--apply` is present. Without `--apply`, it exits with a safety warning.
-
-Apply renames:
-
-```powershell
-photosage rename --input ./photos --apply
-```
-
-Force AI fallback:
-
-```powershell
-photosage preview --input ./photos --force-ai
-```
-
-Override provider and block cloud providers:
-
-```powershell
-photosage scan --input ./photos --provider ollama --local-only
-```
-
-Undo a rename run:
-
-```powershell
-photosage undo --manifest ./manifests/rename_manifest.json
-```
-
-Preview undo without moving files:
-
-```powershell
-photosage undo --manifest ./manifests/rename_manifest.json --dry-run --verbose
-```
-
-Stop on the first rollback error:
-
-```powershell
-photosage undo --manifest ./manifests/rename_manifest.json --stop-on-error
-```
-
-All main commands support:
-
-- `--recursive` and `--no-recursive`
-- `--provider anthropic|openai|gemini|ollama`
-- `--force-ai`
-- `--local-only`
-- `--verbose`
-- `--output-json ./file.json`
-- `--config ./config/settings.yaml`
-
-`undo` accepts these shared options for command consistency, but it restores from manifest paths and does not call providers or AI.
-
-## Lightroom Workflows
-
-PhotoSage supports Lightroom Classic export folders and XMP sidecars. It does not modify Lightroom catalog databases.
-
-Use an export first workflow:
-
-1. Export selected photos from Lightroom Classic to a separate folder.
-2. Run a PhotoSage preview against that export folder.
-3. Review proposed filenames, XMP sidecar handling, and the manifest.
+1. Export photos from Lightroom Classic to a separate folder.
+2. Run PhotoSage on that exported folder.
+3. Review the preview.
 4. Apply only when the preview is correct.
 
-Preview a Lightroom export:
+Preview:
 
 ```powershell
 photosage lightroom-process --input ./LightroomExports --preview
 ```
 
-Apply safe Lightroom export renames:
+Apply:
 
 ```powershell
 photosage lightroom-process --input ./LightroomExports --apply
 ```
 
-Organize exports into year, month, and category folders:
+Organize into folders:
 
 ```powershell
 photosage lightroom-process --input ./LightroomExports --preview --organize
 ```
 
-Use a preset:
-
-```powershell
-photosage lightroom-process --input ./LightroomExports --preview --preset astronomy
-```
-
-Lightroom mode reads `.xmp` sidecars and embedded XMP where available. It extracts title, caption, keywords, rating, color label, creator, copyright, GPS values, and Lightroom collection metadata where possible.
-
-When an image has a matching sidecar, PhotoSage keeps the association synchronized:
+PhotoSage keeps matching XMP sidecars together:
 
 ```text
 photo.jpg
 photo.xmp
 ```
 
-becomes:
+renames to:
 
 ```text
 2026-05-25_dover-tn_container-home_001.jpg
 2026-05-25_dover-tn_container-home_001.xmp
 ```
 
-Lightroom catalog safety is conservative. PhotoSage blocks probable `.lrcat`, `.lrdata`, and preview folder locations by default. Use `--force-catalog-modify` only when you understand the risk of breaking Lightroom references.
-
-More detail is in [docs/lightroom-integration.md](docs/lightroom-integration.md).
-
-## CLI Output
-
-PhotoSage uses Rich tables, panels, progress indicators, and colored statuses.
-
-- Green means success or metadata-only handling.
-- Yellow means warning, dry run, or AI-required handling.
-- Red means errors, skipped files, missing files, or collisions.
-
-Verbose mode enables console logs. File logs are always written to `logs/photosage.log`.
+More detail: [docs/lightroom-integration.md](docs/lightroom-integration.md).
 
 ## Desktop GUI
 
-PhotoSage includes an initial native desktop interface built with PySide6.
-
-Install with GUI dependencies:
-
-```powershell
-python -m pip install -r requirements.txt
-python -m pip install -e .
-```
-
-Launch:
+Launch the GUI:
 
 ```powershell
 photosage-gui
 ```
 
-The GUI is a frontend over the same backend used by the CLI. It does not duplicate rename, manifest, undo, metadata, or provider logic.
+The GUI uses the same backend as the CLI.
 
-Main GUI workflows:
+Use it to:
 
-- Pick or drag a photo folder.
-- Run Scan to inspect supported files and metadata scores.
-- Run Preview to generate proposed filenames and a manifest.
-- Review thumbnails, original names, proposed names, metadata scores, AI status, provider, confidence, file type, date, and location.
-- Select a row to inspect image preview, EXIF metadata, AI response, and filename reasoning.
-- Apply Rename only after a preview and explicit confirmation.
-- Use Undo Last Rename to browse manifests, preview rollback, and restore files safely.
-- Edit provider, threshold, filename format, local-only mode, recursive scanning, thumbnail size, log level, and concurrency settings in the settings dialog.
+- Pick a folder.
+- Scan photos.
+- Preview names.
+- Apply safe renames.
+- Undo from manifests.
+- Change provider settings.
 
-GUI safety model:
-
-- It never renames automatically.
-- It requires a preview before applying renames.
-- It requires confirmation before applying renames.
-- It uses the existing backend manifest system before file changes.
-- It uses the existing backend undo system for rollback.
-- It preserves extensions and never overwrites files.
-
-GUI screenshots:
-
-Screenshots are not committed yet. Add them later under project docs or release assets after the visual design stabilizes.
-
-Desktop requirements:
-
-- Python 3.11+
-- PySide6
-- Pillow
-- Enough RAM for thumbnail previews and large folder scans
-
-Performance notes:
-
-- Long operations run through Qt worker threads so the UI remains responsive.
-- The first GUI version uses backend batch operations and is structured for later thumbnail caching, batching, and higher concurrency.
-- For 10,000+ image libraries, start with preview-only workflows and local manifests before applying changes.
-
-Troubleshooting:
-
-- If the GUI does not start, verify `PySide6` is installed.
-- If image previews are blank, verify the image format is supported by Qt or Pillow.
-- If rename actions are disabled by workflow, run Preview first.
-- If undo is blocked, inspect the rollback report for missing files or collisions.
-
-## Rename Workflow
-
-The rename engine does not call live LLM providers. It works from extracted metadata, optional normalized AI classification JSON, and local filesystem state.
-
-Use this workflow:
-
-1. Run `photosage preview --input ./photos`.
-2. Review proposed filenames and the generated dry-run manifest.
-3. Run `photosage rename --input ./photos --apply` only when the preview is acceptable.
-4. Use `photosage undo --manifest ./manifests/file.json` if you need to restore renamed files.
-
-Metadata-only rename example:
-
-```text
-IMG_0001.jpg -> 2026-05-25_gps-location_shipping-container_canon-r5_001.jpg
-```
-
-Metadata plus AI classification example:
-
-```json
-{
-  "primary_subject": "shipping container",
-  "activity": "deck construction",
-  "location_guess": "dover tn"
-}
-```
-
-```text
-IMG_0001.jpg -> 2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg
-```
-
-Preview mode writes a manifest with `status: planned` and does not rename files. Apply mode writes a manifest before changing files, then records `renamed`, `missing`, `overwrite-prevented`, `unchanged`, or `error` for each item.
-
-Collision handling never overwrites files. PhotoSage scans target names once per directory, tracks planned names during the batch, and advances counters as needed:
-
-```text
-2026-05-25_dover-tn_deck_001.jpg
-2026-05-25_dover-tn_deck_002.jpg
-```
-
-Undo reads the manifest and safely reverses renamed files. It skips missing files, prevents overwrite conflicts, supports partial rollback, writes a rollback report, and logs every result.
+The GUI is functional but still early.
 
 ## Filename Format
 
-PhotoSage builds filenames locally with deterministic code.
-
-Format:
+Default format:
 
 ```text
 YYYY-MM-DD_location_subject_context_###.ext
@@ -477,109 +279,48 @@ Rules:
 
 - Use EXIF date first.
 - Fall back to file modified date.
-- Use metadata location first.
-- Fall back to LLM `location_guess`.
-- Sanitize every filename part.
-- Lowercase filenames.
+- Keep the original extension.
+- Lowercase names.
 - Replace spaces with hyphens.
 - Remove unsafe characters.
-- Normalize Unicode to portable ASCII.
-- Prevent Windows reserved filenames like `CON`, `PRN`, `AUX`, `NUL`, `COM1`, and `LPT1`.
-- Limit filename length to 180 characters.
-- Preserve the original extension.
 - Add counters to prevent overwrites.
 
-Example:
+## Manifests And Undo
+
+Every preview or apply run writes a manifest in:
 
 ```text
-2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg
+manifests/
 ```
 
-## Manifest And Undo
-
-Every preview or rename creates a manifest under `manifests/`.
-
-Manifest filename format:
-
-```text
-rename_manifest_YYYYMMDD_HHMMSS.json
-```
-
-The manifest records:
-
-- run ID
-- timestamp
-- input directory
-- dry run state
-- provider used
-- metadata threshold
-- original and new paths
-- metadata score
-- whether AI was used
-- extracted metadata
-- normalized AI response
-- status
-
-Undo reads the manifest, skips missing files, prevents overwrites, and logs each result.
-
-Rollback reports are written under:
+Undo reports are written in:
 
 ```text
 rollback_reports/
 ```
 
-Report filename format:
+Keep these files if you may need to undo a rename.
 
-```text
-rollback_YYYYMMDD_HHMMSS.json
+## Project Docs
+
+- [assessment.md](assessment.md): Current project state for future agents.
+- [CHANGELOG.md](CHANGELOG.md): What changed.
+- [completed-upgrades.md](completed-upgrades.md): Finished roadmap work.
+- [docs/lightroom-integration.md](docs/lightroom-integration.md): Lightroom workflow.
+- [specs/README.md](specs/README.md): Spec workflow for larger changes.
+- `future-upgrades.md`: Local-only roadmap. It is intentionally ignored by git.
+
+## Run Tests
+
+```powershell
+python -m pytest
 ```
-
-Rollback statuses:
-
-- `restored`: file was moved back to its original path, or dry run verified that it could be restored.
-- `skipped_missing`: renamed file was missing.
-- `skipped_collision`: original path already exists, so PhotoSage did not overwrite it.
-- `failed`: manifest entry was invalid, unsafe, or not rollbackable.
-
-Undo safety rules:
-
-- Never overwrite existing files.
-- Never delete files.
-- Do not append counters during undo.
-- Reject malformed manifests.
-- Reject path traversal and paths outside the manifest input directory.
-- Continue processing remaining entries unless `--stop-on-error` is used.
-
-## Specs
-
-Larger PhotoSage changes should start in [specs/](specs/).
-
-Use a spec when work changes multiple modules, adds a provider, changes CLI behavior, touches manifests, affects rename safety, or adds a new workflow.
-
-Current active spec:
-
-- [001-lm-studio-provider](specs/001-lm-studio-provider/spec.md)
-
-## Logs
-
-PhotoSage writes logs to:
-
-```text
-logs/photosage.log
-```
-
-The log includes scanned files, skipped files, metadata scores, AI fallback decisions, suggested filenames, applied renames, undo operations, and errors.
 
 ## Privacy Notes
 
-- Metadata is the primary source of truth.
-- Images are not sent to providers unless metadata is insufficient or `--force-ai` is used.
-- Images are never sent to providers when `local_only: true`.
-- The LLM is only allowed to return structured classification data.
-- The LLM does not rename files.
-- Prompts instruct providers not to identify private people unless names already exist in metadata.
-- API keys belong in `.env`, never in source control.
-
-## Roadmap
-
-See [future-upgrades.md](future-upgrades.md).
+- Metadata is used before AI.
+- Files are marked as AI-needed when metadata is weak or `--force-ai` is passed.
+- `local_only: true` blocks cloud providers.
+- Providers return structured classification only.
+- Providers do not rename or move files.
+- API keys belong in `.env`, not in source control.

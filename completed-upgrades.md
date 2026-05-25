@@ -1,15 +1,30 @@
 # Completed Upgrades
 
-This file tracks upgrades that were planned in `future-upgrades.md` and are now finished.
+This file tracks roadmap items that are finished.
 
-## How to use
+Use it with `future-upgrades.md`.
 
-1. When an item is completed, remove it from `future-upgrades.md`.
-2. Add the completed item here with the completion date.
-3. Include links to related PRs, commits, or notes when helpful.
+## How To Update
 
-## Completed Items
+When an upgrade is completed:
+
+1. Remove it from `future-upgrades.md`.
+2. Add it here.
+3. Include the date.
+4. Link related specs, commits, or notes when useful.
+
+## Completed
 
 ### 2026-05-25
 
-- Initialized completed upgrade tracking file.
+- Created this tracking file.
+- Added the metadata engine.
+- Added the provider system.
+- Added the rename engine.
+- Added undo and rollback reports.
+- Added the Typer CLI.
+- Added Ollama support.
+- Added the first PySide6 GUI.
+- Added Lightroom export folder support.
+- Added the repo spec workflow.
+- Added `assessment.md` for future agents.

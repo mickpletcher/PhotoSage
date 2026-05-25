@@ -1,14 +1,21 @@
-# PhotoSage Specs
+# Specs
 
-This folder is the planning source for larger PhotoSage changes.
+Use this folder for larger PhotoSage changes.
 
-Use specs when a change affects more than one subsystem, changes user-facing behavior, adds a provider, touches rename safety, changes manifests, or adds a new workflow.
+A spec is needed when a change:
 
-Small bug fixes can skip specs if the fix is obvious and contained.
+- Adds a provider.
+- Changes CLI or GUI behavior.
+- Touches rename safety.
+- Changes manifests or undo.
+- Adds a new workflow.
+- Affects more than one module.
 
-## Workflow
+Small bug fixes do not need a spec.
 
-Each feature gets its own numbered folder:
+## Folder Format
+
+Use the next number:
 
 ```text
 specs/
@@ -18,48 +25,26 @@ specs/
     tasks.md
 ```
 
-Use the next available number. Keep names short and lowercase.
+## What Each File Is For
 
-## File Roles
+- `spec.md`: What the feature must do.
+- `plan.md`: How to build it.
+- `tasks.md`: The implementation checklist.
 
-`spec.md`
+## Required Safety Rules
 
-Defines the user problem, requirements, non-goals, safety constraints, and acceptance criteria.
-
-`plan.md`
-
-Defines the implementation approach, files to change, data flow, risks, and verification strategy.
-
-`tasks.md`
-
-Defines the actual checklist used during implementation.
-
-## Required Sections
-
-Every spec should answer:
-
-- What user workflow changes?
-- What modules are in scope?
-- What modules are out of scope?
-- What safety rules must remain true?
-- What tests prove the change works?
-- What docs need updates?
-
-## Safety Requirements
-
-PhotoSage specs must preserve these project rules:
+Every spec must preserve these rules:
 
 - Metadata first.
-- AI fallback only when needed or explicitly forced.
-- Providers classify images only.
-- Providers never rename or move files.
+- AI only when needed or forced.
 - Preview before apply.
-- No rename without explicit `--apply`.
+- No rename without `--apply`.
 - No overwrites.
-- Manifest before mutation.
-- Undo must remain possible.
+- Manifest before file changes.
+- Undo must keep working.
 - Local-only mode must block cloud calls.
+- Providers classify only. They do not rename files.
 
-## Current Specs
+## Active Specs
 
-- `001-lm-studio-provider`: Add LM Studio as a local OpenAI-compatible vision provider.
+- [001-lm-studio-provider](001-lm-studio-provider/spec.md)

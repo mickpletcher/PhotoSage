@@ -1,18 +1,16 @@
 # Spec: LM Studio Provider
 
-## Status
+## Goal
 
-Draft
+Add LM Studio as a local vision provider.
 
-## Objective
+LM Studio should work like Ollama: local, privacy-friendly, and provider-agnostic.
 
-Add LM Studio as a local vision provider for PhotoSage.
+## User Story
 
-LM Studio should let users run local multimodal models through its OpenAI-compatible API while preserving PhotoSage's metadata-first architecture, safe rename model, and provider-agnostic response contract.
+As a PhotoSage user, I want to use a local LM Studio vision model so I can classify photos without sending images to a cloud provider.
 
-## User Workflow
-
-Users should be able to configure PhotoSage like this:
+## Example Config
 
 ```yaml
 vision_provider: lmstudio
@@ -31,7 +29,7 @@ lmstudio:
   jpeg_quality: 90
 ```
 
-Then run:
+## User Commands
 
 ```powershell
 photosage providers
@@ -41,26 +39,22 @@ photosage preview --input ./photos --provider lmstudio --local-only
 
 ## Requirements
 
-- Add `lmstudio` as a supported provider name.
+- Add `lmstudio` as a provider.
 - Add `src/photosage/providers/lmstudio_provider.py`.
 - Use LM Studio's OpenAI-compatible local API.
-- Default endpoint should be `http://localhost:1234/v1`.
-- Load provider settings from `config/settings.yaml`.
-- Support configurable model, timeout, temperature, resize limit, and JPEG quality.
-- Encode local images safely for the request.
-- Send metadata context with the image.
-- Reuse the existing image classification prompt requirements.
-- Normalize responses into the existing provider schema.
+- Default endpoint: `http://localhost:1234/v1`.
+- Read settings from `config/settings.yaml`.
+- Support model, timeout, temperature, resize limit, and JPEG quality.
+- Send image data and metadata context to LM Studio.
+- Normalize responses into the existing PhotoSage provider schema.
 - Retry invalid JSON and transient local server failures.
-- Do not retry invalid configuration or unsupported model errors.
-- Add health checks using the local models endpoint.
+- Add health checks using `/v1/models`.
 - Show LM Studio in `photosage providers`.
-- Enforce `local_only: true` correctly.
-- Keep fallback behavior provider agnostic.
+- Respect `local_only: true`.
 
 ## Response Contract
 
-LM Studio responses must normalize to:
+Every response must become:
 
 ```json
 {
@@ -77,50 +71,37 @@ LM Studio responses must normalize to:
 }
 ```
 
-## Non-Goals
+## Out Of Scope
 
 - Do not add rename logic to the provider.
 - Do not bypass metadata scoring.
-- Do not require LM Studio for normal metadata-only workflows.
-- Do not add a GUI-specific implementation.
+- Do not require LM Studio for metadata-only workflows.
 - Do not cache image bytes.
-- Do not add cloud fallback when `local_only: true`.
+- Do not allow cloud fallback when `local_only: true`.
 
-## Safety Requirements
+## Safety Rules
 
-- LM Studio must be treated as a local provider.
-- Images must not be sent to cloud providers when `local_only: true`.
-- API keys must not be required for LM Studio.
-- Logs must not include image bytes, base64 data, or secrets.
-- Provider failures must not cause files to be renamed.
+- LM Studio is local.
+- No API key should be required.
+- Do not log image bytes or base64 data.
+- Do not log secrets.
+- Provider failure must not rename files.
 
-## Tests
+## Tests Required
 
-Add pytest coverage for:
-
-- Provider factory supports `lmstudio`.
-- Local-only mode permits LM Studio.
-- Local-only mode blocks cloud fallback after LM Studio failure.
-- Health check handles reachable and unreachable LM Studio endpoints.
-- Model listing parses `/v1/models`.
-- Malformed JSON response is repaired or retried.
-- Timeout and connection failure are reported cleanly.
-- Normalized response matches the provider contract.
-
-## Documentation
-
-Update:
-
-- `README.md`
-- `CHANGELOG.md`
-- `config/settings.yaml`
-- `.env.example` only if needed, but LM Studio should not require an API key.
+- Provider factory creates LM Studio.
+- Local-only mode allows LM Studio.
+- Local-only mode blocks cloud fallback.
+- Health check handles reachable and unreachable endpoints.
+- `/v1/models` response is parsed.
+- Bad JSON is repaired or retried.
+- Timeouts produce clear errors.
+- Output matches the provider schema.
 
 ## Acceptance Criteria
 
-- `photosage providers` shows LM Studio status.
-- `--provider lmstudio` is accepted by CLI commands.
+- `--provider lmstudio` works.
+- `photosage providers` shows LM Studio.
 - `local_only: true` allows LM Studio and blocks cloud providers.
-- Invalid LM Studio responses do not escape normalization.
-- Existing provider tests still pass.
-- Full test suite passes with `python -m pytest`.
+- Invalid model output does not escape normalization.
+- `python -m pytest` passes.
