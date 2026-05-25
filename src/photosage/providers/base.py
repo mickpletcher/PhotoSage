@@ -1,73 +1,68 @@
 from __future__ import annotations
 
+import base64
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-AI_SCHEMA_KEYS = {
-    "primary_subject",
-    "secondary_subject",
-    "activity",
-    "environment",
-    "location_guess",
-    "confidence",
-    "tags",
-    "description",
-}
+from photosage.providers.response_normalizer import empty_response, normalize_response
+
+LOCAL_PROVIDERS = {"ollama"}
+CLOUD_PROVIDERS = {"anthropic", "openai", "gemini"}
 
 
 class VisionProvider(ABC):
-    """Base class for vision providers."""
+    """Base class for image understanding providers."""
 
-    name = "base"
+    provider_name = "base"
+    default_model = ""
+    is_local = False
+
+    def __init__(self, settings: dict[str, Any] | None = None) -> None:
+        self.settings = settings or {}
+        self.model = str(self.settings.get("model") or self.default_model)
 
     @abstractmethod
     def analyze_image(self, image_path: Path, metadata: dict[str, Any]) -> dict[str, Any]:
-        """Analyze an image and return normalized structured image understanding data."""
+        """Analyze image content and return normalized structured JSON."""
 
+    def normalize(self, payload: str | dict[str, Any]) -> dict[str, Any]:
+        """Normalize provider payload into the shared contract."""
+        return normalize_response(payload, provider=self.provider_name, model=self.model)
 
-def empty_ai_response() -> dict[str, Any]:
-    """Return the normalized JSON contract with empty values."""
-    return {
-        "primary_subject": "",
-        "secondary_subject": "",
-        "activity": "",
-        "environment": "",
-        "location_guess": "",
-        "confidence": 0.0,
-        "tags": [],
-        "description": "",
-    }
-
-
-def validate_ai_response(response: dict[str, Any]) -> dict[str, Any]:
-    """Validate and normalize provider response data."""
-    missing = AI_SCHEMA_KEYS.difference(response)
-    if missing:
-        raise ValueError(f"AI response missing keys: {sorted(missing)}")
-
-    normalized = empty_ai_response()
-    normalized.update(response)
-    normalized["confidence"] = float(normalized["confidence"])
-    normalized["tags"] = [str(tag) for tag in (normalized.get("tags") or [])]
-    return normalized
-
-
-class StubVisionProvider(VisionProvider):
-    """Provider stub that does not upload image data."""
-
-    name = "stub"
-
-    def analyze_image(self, image_path: Path, metadata: dict[str, Any]) -> dict[str, Any]:
-        """Return low confidence structured data without remote analysis."""
-        response = empty_ai_response()
+    def stub_response(self, image_path: Path, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Return deterministic structured data without remote analysis."""
+        response = empty_response(provider=self.provider_name, model=self.model)
         response.update(
             {
                 "primary_subject": image_path.stem,
                 "confidence": 0.1,
                 "tags": ["unverified"],
-                "description": "Provider stub returned no remote analysis.",
+                "description": "Provider client is not configured. No remote image analysis was performed.",
             }
         )
-        return validate_ai_response(response)
+        return self.normalize(response)
+
+    def image_as_base64(self, image_path: Path) -> str:
+        """Encode an image as base64 for provider APIs."""
+        return base64.b64encode(image_path.read_bytes()).decode("ascii")
+
+
+def build_provider_prompt(metadata: dict[str, Any]) -> str:
+    """Build a provider prompt that asks only for factual classification JSON."""
+    safe_metadata = {
+        key: value
+        for key, value in metadata.items()
+        if key not in {"raw_metadata"} and value not in (None, "", [], {})
+    }
+    return (
+        "Classify this image for a photo organization tool. "
+        "Return JSON only. Do not rename the file. Do not output markdown. "
+        "Do not identify private people unless names already exist in metadata. "
+        "Avoid speculation, emotional descriptions, and assumptions. "
+        "Use concise factual labels. "
+        "Schema: primary_subject, secondary_subject, activity, environment, "
+        "location_guess, confidence, tags, description. "
+        f"Metadata: {safe_metadata}"
+    )
 

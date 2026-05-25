@@ -202,6 +202,7 @@ cython_debug/
 # Project artifacts
 manifests/
 logs/
+future-upgrades.md
 prompts/*
 !prompts/
 !prompts/image_classification.md

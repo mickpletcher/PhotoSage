@@ -14,7 +14,10 @@ dependencies = [
   "pillow-heif>=0.16.0",
   "exifread>=3.0.0",
   "rich>=13.0.0",
-  "python-dateutil>=2.8.2"
+  "python-dateutil>=2.8.2",
+  "anthropic>=0.40.0",
+  "openai>=1.0.0",
+  "google-genai>=1.0.0"
 ]
 
 [project.scripts]

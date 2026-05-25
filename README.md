@@ -35,14 +35,73 @@ Unsupported files are skipped and logged.
 
 ## Supported Providers
 
-Provider stubs are included for:
+The provider system is model agnostic. Providers can be swapped by editing `config/settings.yaml`.
 
 - Anthropic Claude
 - OpenAI vision models
 - Google Gemini
 - Ollama local vision models
 
-The provider system is intentionally model agnostic. Provider implementations must normalize output into the shared JSON contract before PhotoSage builds filenames.
+All providers normalize output into the same internal contract:
+
+```json
+{
+  "primary_subject": "string",
+  "secondary_subject": "string",
+  "activity": "string",
+  "environment": "string",
+  "location_guess": "string",
+  "confidence": 0.0,
+  "tags": [],
+  "description": "string",
+  "provider": "string",
+  "model": "string"
+}
+```
+
+Providers classify image content only. They do not rename files, move files, or build final filenames.
+
+### Fallback Behavior
+
+PhotoSage starts with `vision_provider`, then tries each configured provider in `fallback_order` if a provider fails.
+
+```yaml
+vision_provider: anthropic
+
+fallback_order:
+  - anthropic
+  - openai
+  - gemini
+  - ollama
+```
+
+Retry logic handles invalid JSON, transient provider failures, timeouts, and local Ollama availability issues. Authentication and invalid configuration failures are not retried.
+
+### Local Only Mode
+
+When `local_only: true`, cloud providers are blocked. Only local providers such as Ollama are allowed.
+
+```yaml
+local_only: true
+vision_provider: ollama
+```
+
+This prevents PhotoSage from uploading images to Anthropic, OpenAI, or Gemini.
+
+### Ollama Setup
+
+Install Ollama and pull a local multimodal model:
+
+```powershell
+ollama pull llava
+```
+
+Supported local model targets include:
+
+- `llava`
+- `minicpm-v`
+- `qwen-vl`
+- future Ollama vision models
 
 ## Install
 
@@ -70,6 +129,21 @@ fallback_order:
   - ollama
 
 filename_format: "{date}_{location}_{subject}_{context}_{counter}"
+provider_retry_count: 3
+provider_retry_initial_delay: 0.5
+
+anthropic:
+  model: claude-sonnet-4
+
+openai:
+  model: gpt-4.1-mini
+
+gemini:
+  model: gemini-2.5-pro
+
+ollama:
+  endpoint: http://localhost:11434
+  model: llava
 ```
 
 Copy `.env.example` to `.env` if you later add real provider API calls. Do not commit API keys.

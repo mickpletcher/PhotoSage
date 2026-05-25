@@ -17,6 +17,9 @@ class AppConfig:
     filename_format: str = "{date}_{location}_{subject}_{context}_{counter}"
     manifest_directory: Path = Path("manifests")
     log_file: Path = Path("logs/photosage.log")
+    provider_settings: dict[str, dict[str, Any]] = field(default_factory=dict)
+    provider_retry_count: int = 3
+    provider_retry_initial_delay: float = 0.5
 
 
 def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
@@ -36,5 +39,12 @@ def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
         filename_format=str(data.get("filename_format", "{date}_{location}_{subject}_{context}_{counter}")),
         manifest_directory=Path(data.get("manifest_directory", "manifests")),
         log_file=Path(data.get("log_file", "logs/photosage.log")),
+        provider_settings={
+            "anthropic": dict(data.get("anthropic", {}) or {}),
+            "openai": dict(data.get("openai", {}) or {}),
+            "gemini": dict(data.get("gemini", {}) or {}),
+            "ollama": dict(data.get("ollama", {}) or {}),
+        },
+        provider_retry_count=int(data.get("provider_retry_count", 3)),
+        provider_retry_initial_delay=float(data.get("provider_retry_initial_delay", 0.5)),
     )
-

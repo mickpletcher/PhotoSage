@@ -9,7 +9,8 @@ from photosage.config import AppConfig
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
-from photosage.providers import get_provider
+from photosage.providers.exceptions import ProviderError
+from photosage.providers.provider_manager import ProviderManager
 from photosage.rename.duplicate_handler import unique_destination
 from photosage.rename.filename_builder import build_filename
 from photosage.scanner import scan_images
@@ -25,7 +26,7 @@ class RenameResult:
 
 def build_rename_manifest(input_directory: Path, config: AppConfig, force_ai: bool = False, dry_run: bool = True) -> dict[str, Any]:
     """Build proposed rename operations without modifying files."""
-    provider = None if config.local_only else get_provider(config.vision_provider)
+    provider_manager = ProviderManager(config)
     provider_used = None
     files: list[dict[str, Any]] = []
     seen: set[Path] = set()
@@ -36,10 +37,13 @@ def build_rename_manifest(input_directory: Path, config: AppConfig, force_ai: bo
         ai_used = False
         ai_response = None
 
-        if not config.local_only and (force_ai or metadata_score < config.metadata_threshold):
-            ai_used = True
-            ai_response = provider.analyze_image(image_path, metadata) if provider else None
-            provider_used = provider.name if provider else None
+        if force_ai or metadata_score < config.metadata_threshold:
+            try:
+                ai_response = provider_manager.analyze_image(image_path, metadata)
+                ai_used = True
+                provider_used = ai_response.get("provider")
+            except ProviderError as error:
+                logger.warning("AI fallback failed for %s: %s", image_path, type(error).__name__)
 
         new_path = unique_destination(
             image_path.parent,

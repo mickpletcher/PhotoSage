@@ -1,22 +1,32 @@
 from __future__ import annotations
 
-from photosage.providers.anthropic_provider import AnthropicProvider
 from photosage.providers.base import VisionProvider
-from photosage.providers.gemini_provider import GeminiProvider
-from photosage.providers.ollama_provider import OllamaProvider
-from photosage.providers.openai_provider import OpenAIProvider
+from photosage.providers.exceptions import (
+    AuthenticationError,
+    InvalidResponseError,
+    ProviderError,
+    ProviderUnavailableError,
+    RetryLimitExceededError,
+    UnsupportedProviderError,
+)
+from photosage.providers.provider_factory import ProviderFactory
+from photosage.providers.provider_manager import ProviderManager
 
 
-def get_provider(name: str) -> VisionProvider:
+def get_provider(name: str, settings: dict | None = None) -> VisionProvider:
     """Return a configured vision provider by name."""
-    providers: dict[str, type[VisionProvider]] = {
-        "anthropic": AnthropicProvider,
-        "openai": OpenAIProvider,
-        "gemini": GeminiProvider,
-        "ollama": OllamaProvider,
-    }
-    provider_class = providers.get(name.lower())
-    if provider_class is None:
-        raise ValueError(f"Unsupported vision provider: {name}")
-    return provider_class()
+    return ProviderFactory.create(name, settings=settings)
 
+
+__all__ = [
+    "AuthenticationError",
+    "InvalidResponseError",
+    "ProviderError",
+    "ProviderFactory",
+    "ProviderManager",
+    "ProviderUnavailableError",
+    "RetryLimitExceededError",
+    "UnsupportedProviderError",
+    "VisionProvider",
+    "get_provider",
+]
