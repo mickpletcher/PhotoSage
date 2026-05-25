@@ -151,6 +151,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -209,6 +211,31 @@ future-upgrades.md
 prompts/*
 !prompts/
 !prompts/image_classification.md
+
+# Local photo input/output folders
+photos/
+LightroomExports/
+AstroExports/
+exports/
+sample-photos/
+sample_photos/
+photo_exports/
+
+# Lightroom catalogs and support folders
+*.lrcat
+*.lrdata/
+*.lrprev
+*.lrtemplate
+
+# Local PhotoSage caches
+.photosage-cache/
+thumbnail_cache/
+
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
 #   you could uncomment the following to ignore the entire vscode folder
 # .vscode/
 # Temporary file for partial code execution
