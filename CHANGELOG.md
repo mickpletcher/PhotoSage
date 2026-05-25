@@ -8,6 +8,7 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added a repo-local specs workflow under `specs/` with a seeded `001-lm-studio-provider` requirements, plan, and task package.
 - Added Lightroom export workflow support with XMP sidecar parsing, embedded XMP fallback, metadata score bonuses, sidecar synchronization, optional folder organization, catalog safety blocking, Lightroom presets, and `photosage lightroom-process`.
 - Added Lightroom integration documentation and tests for XMP parsing, metadata mapping, folder organization, catalog safety, CLI preview, and sidecar rename behavior.
 - Built the first PySide6 desktop GUI scaffold with a functional main window, folder picker, provider controls, scan and preview table, image and metadata detail panels, settings dialog, undo dialog, worker threads, progress panel, and logging console.

@@ -181,6 +181,8 @@ Primary docs:
 - `CHANGELOG.md`: Keep a Changelog style change tracking.
 - `completed-upgrades.md`: Completed roadmap items.
 - `docs/lightroom-integration.md`: Lightroom workflow documentation.
+- `specs/README.md`: Spec workflow for larger changes.
+- `specs/001-lm-studio-provider/`: First active provider spec package.
 - `future-upgrades.md`: Local-only ignored planning roadmap.
 
 `future-upgrades.md` is intentionally ignored by git.
@@ -221,13 +223,14 @@ Read these first:
 1. `README.md`
 2. `CHANGELOG.md`
 3. `assessment.md`
-4. `config/settings.yaml`
-5. `src/photosage/cli.py`
-6. `src/photosage/rename/renamer.py`
-7. `src/photosage/manifest/undo.py`
-8. `src/photosage/providers/provider_manager.py`
-9. `src/photosage/lightroom/exporter.py`
-10. `tests/`
+4. `specs/README.md`
+5. `config/settings.yaml`
+6. `src/photosage/cli.py`
+7. `src/photosage/rename/renamer.py`
+8. `src/photosage/manifest/undo.py`
+9. `src/photosage/providers/provider_manager.py`
+10. `src/photosage/lightroom/exporter.py`
+11. `tests/`
 
 Before making behavioral changes, run:
 

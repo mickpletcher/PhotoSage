@@ -550,6 +550,16 @@ Undo safety rules:
 - Reject path traversal and paths outside the manifest input directory.
 - Continue processing remaining entries unless `--stop-on-error` is used.
 
+## Specs
+
+Larger PhotoSage changes should start in [specs/](specs/).
+
+Use a spec when work changes multiple modules, adds a provider, changes CLI behavior, touches manifests, affects rename safety, or adds a new workflow.
+
+Current active spec:
+
+- [001-lm-studio-provider](specs/001-lm-studio-provider/spec.md)
+
 ## Logs
 
 PhotoSage writes logs to:
