@@ -16,6 +16,10 @@ def _get(metadata: Any, key: str) -> Any:
 
 def subject_from_metadata(metadata: Any) -> str:
     """Pick the best subject candidate from metadata."""
+    for key in ("content_label", "document_type", "media_type"):
+        value = _get(metadata, key)
+        if value and value != "photo":
+            return str(value)
     keywords = _get(metadata, "keywords") or _get(metadata, "tags") or []
     if keywords:
         return str(keywords[0])
@@ -34,6 +38,10 @@ def location_from_metadata(metadata: Any) -> str | None:
         or (_get(metadata, "gps_latitude") is not None and _get(metadata, "gps_longitude") is not None)
     ):
         return "gps-location"
+    if _get(metadata, "media_type") == "screenshot":
+        return "digital"
+    if _get(metadata, "media_type") == "document":
+        return "document"
     return None
 
 
@@ -56,12 +64,12 @@ def date_from_metadata(metadata: Any) -> str:
 def filename_from_metadata(metadata: Any, counter: int = 1, max_length: int = 180) -> str:
     """Build a safe filename using metadata only."""
     extension = _get(metadata, "extension") or _get(metadata, "file_extension") or Path(str(_get(metadata, "original_filename") or "photo.jpg")).suffix.lstrip(".")
-    camera = _get(metadata, "camera_model") or _get(metadata, "camera_make") or "photo"
+    context = _get(metadata, "source_app") or _get(metadata, "document_type") or _get(metadata, "camera_model") or _get(metadata, "camera_make") or "photo"
     parts = [
         date_from_metadata(metadata),
         sanitize_part(location_from_metadata(metadata) or "unknown-location"),
         sanitize_part(subject_from_metadata(metadata)),
-        sanitize_part(camera),
+        sanitize_part(context),
         f"{counter:03d}",
     ]
     return sanitize_filename(f"{'_'.join(parts)}.{extension}", max_length=max_length)

@@ -293,6 +293,48 @@ Rules:
 - Remove unsafe characters.
 - Add counters to prevent overwrites.
 
+## Screenshot And Document Mode
+
+PhotoSage can label common non-photo images from local metadata and filenames.
+
+It can detect:
+
+- screenshots
+- receipts
+- invoices
+- statements
+- bills
+- forms
+- scanned documents
+- notes
+- email screenshots
+- spreadsheet or presentation images
+
+For screenshots, PhotoSage tries to identify the source app when it is obvious, such as Chrome, Edge, Outlook, Teams, Excel, Word, VS Code, Slack, or Lightroom.
+
+For documents, PhotoSage adds document labels such as `receipt`, `invoice`, or `statement`.
+
+These labels are added to metadata and can affect generated filenames:
+
+```text
+Screenshot 2026-05-25 Chrome.png
+```
+
+can become:
+
+```text
+2026-05-25_digital_screenshot_chrome_001.png
+```
+
+Extra filename tokens are available:
+
+- `{media_type}`
+- `{document_type}`
+- `{app}`
+- `{ocr_summary}`
+
+`{ocr_summary}` uses embedded OCR-like metadata only when it already exists. PhotoSage does not run OCR yet.
+
 ## Manifests And Undo
 
 Every preview or apply run writes a manifest in:

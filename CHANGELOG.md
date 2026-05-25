@@ -8,6 +8,7 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added screenshot and document mode with local metadata labels, source app detection, document type hints, OCR summary metadata support, and new filename tokens.
 - Added GitHub Actions CI for pytest, basic Ruff lint checks, Markdown link checks, and spec folder checks.
 - Added `photosage manifest validate` with missing file checks, safe path validation, sidecar mismatch detection, undo collision warnings, and optional SHA256 hashes.
 - Hardened local-only provider selection with registered local provider detection, blocked provider audit logs, and local-only status in CLI summaries.

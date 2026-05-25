@@ -31,9 +31,20 @@ def test_extract_metadata_returns_compatibility_aliases(tmp_path):
     assert metadata["absolute_path"].endswith("photo.png")
 
 
+def test_extract_metadata_labels_screenshots(tmp_path):
+    image_path = tmp_path / "Screenshot 2026-05-25 Chrome.png"
+    Image.new("RGB", (20, 10), color="white").save(image_path)
+
+    metadata = extract_metadata(image_path)
+
+    assert metadata["media_type"] == "screenshot"
+    assert metadata["content_label"] == "screenshot"
+    assert metadata["source_app"] == "chrome"
+    assert "screenshot" in metadata["tags"]
+
+
 def test_extract_photo_metadata_skips_unsupported_file(tmp_path):
     text_path = tmp_path / "notes.txt"
     text_path.write_text("not an image", encoding="utf-8")
 
     assert extract_photo_metadata(text_path) is None
-

@@ -20,6 +20,7 @@ except ImportError:
     exifread = None
 
 from photosage.metadata.gps_parser import parse_gps_info
+from photosage.metadata.mixed_media import classify_mixed_media
 from photosage.scanner import SUPPORTED_IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
@@ -61,6 +62,12 @@ class PhotoMetadata:
     description: str | None = None
     keywords: list[str] = field(default_factory=list)
     tags: list[str] = field(default_factory=list)
+    media_type: str | None = None
+    content_label: str | None = None
+    source_app: str | None = None
+    document_type: str | None = None
+    ocr_summary: str | None = None
+    mixed_media_tags: list[str] = field(default_factory=list)
     raw_metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -227,6 +234,15 @@ def extract_photo_metadata(image_path: Path) -> PhotoMetadata | None:
     )
 
     logger.info("extracted metadata for %s", image_path)
+    mixed_media = classify_mixed_media(metadata.to_dict())
+    metadata.media_type = mixed_media["media_type"]
+    metadata.content_label = mixed_media["content_label"]
+    metadata.source_app = mixed_media["source_app"]
+    metadata.document_type = mixed_media["document_type"]
+    metadata.ocr_summary = mixed_media["ocr_summary"]
+    metadata.mixed_media_tags = mixed_media["mixed_media_tags"]
+    if metadata.mixed_media_tags:
+        metadata.tags = sorted(set(metadata.tags + metadata.mixed_media_tags))
     return metadata
 
 

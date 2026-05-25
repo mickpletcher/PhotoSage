@@ -44,3 +44,32 @@ def test_build_filename_skips_empty_ai_fields_without_double_underscores():
 
     assert "__" not in filename
     assert filename == "2026-05-20_unknown-location_deck_photo_001.jpg"
+
+
+def test_build_filename_uses_screenshot_labels_and_app_context():
+    metadata = {
+        "original_filename": "Screenshot 2026-05-25 Chrome.png",
+        "file_extension": "png",
+        "modified_date": "2026-05-25T10:00:00",
+        "media_type": "screenshot",
+        "content_label": "screenshot",
+        "source_app": "chrome",
+    }
+
+    assert build_filename(metadata, None, 1) == "2026-05-25_digital_screenshot_chrome_001.png"
+
+
+def test_build_filename_supports_document_tokens():
+    metadata = {
+        "original_filename": "receipt.jpg",
+        "file_extension": "jpg",
+        "modified_date": "2026-05-25T10:00:00",
+        "media_type": "document",
+        "content_label": "receipt",
+        "document_type": "receipt",
+        "ocr_summary": "Target receipt total",
+    }
+
+    filename = build_filename(metadata, None, 2, "{date}_{media_type}_{document_type}_{ocr_summary}_{counter}")
+
+    assert filename == "2026-05-25_document_receipt_target-receipt-total_002.jpg"

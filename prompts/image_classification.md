@@ -10,6 +10,7 @@ Tasks:
 - Identify secondary subjects when useful.
 - Identify the visible activity or scene.
 - Identify the environment.
+- Identify screenshots, receipts, invoices, forms, and document-like images when visible.
 - Provide a cautious location guess only when the image clearly supports it.
 - Add factual tags.
 - Write a concise description.
@@ -22,6 +23,8 @@ Safety and privacy rules:
 - Only include a person's name when the provided metadata already contains that name.
 - Keep details factual and concise.
 - Avoid speculation.
+- For screenshots, include the visible app or document type in tags only when clear.
+- For documents and receipts, summarize the document type without extracting sensitive private details.
 
 Required JSON schema:
 
@@ -35,4 +38,3 @@ Required JSON schema:
   "tags": ["string"],
   "description": "string"
 }
-

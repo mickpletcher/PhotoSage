@@ -60,16 +60,29 @@ def build_filename_components(metadata: dict[str, Any], ai_response: dict[str, A
     subject = (
         ai_response.get("primary_subject")
         or ai_response.get("secondary_subject")
+        or metadata.get("content_label")
+        or metadata.get("document_type")
         or subject_from_metadata(metadata)
         or "photo"
     )
-    context = ai_response.get("activity") or ai_response.get("environment") or metadata.get("camera_model") or "photo"
+    context = (
+        ai_response.get("activity")
+        or ai_response.get("environment")
+        or metadata.get("source_app")
+        or metadata.get("document_type")
+        or metadata.get("camera_model")
+        or "photo"
+    )
 
     return {
         "date": sanitize_part(date_for_filename(metadata), "unknown-date"),
         "location": sanitize_part(location, "unknown-location"),
         "subject": sanitize_part(subject, "photo"),
         "context": sanitize_part(context, "photo"),
+        "app": sanitize_part(metadata.get("source_app") or "unknown-app", "unknown-app"),
+        "document_type": sanitize_part(metadata.get("document_type") or "document", "document"),
+        "media_type": sanitize_part(metadata.get("media_type") or "photo", "photo"),
+        "ocr_summary": sanitize_part(metadata.get("ocr_summary") or "no-ocr-summary", "no-ocr-summary"),
     }
 
 

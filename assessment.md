@@ -24,6 +24,7 @@ The project is no longer just a scaffold. The main architecture is in place.
 - Ollama local provider support
 - Lightroom export folder support
 - XMP sidecar parsing and rename sync
+- Screenshot and document image labeling
 - Pytest coverage across core modules
 
 ## Core Flow
