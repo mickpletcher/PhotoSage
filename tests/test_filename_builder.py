@@ -1,0 +1,33 @@
+from photosage.rename.filename_builder import build_filename
+
+
+def test_build_filename_uses_exif_date_and_ai_context():
+    metadata = {
+        "original_filename": "IMG_0001.jpg",
+        "file_extension": "jpg",
+        "exif_date_taken": "2026:05:25 14:22:00",
+        "modified_date": "2026-05-24T10:00:00",
+        "gps_latitude": None,
+        "gps_longitude": None,
+    }
+    ai_response = {
+        "primary_subject": "Shipping Container",
+        "activity": "Deck Construction",
+        "environment": "Outdoor",
+        "location_guess": "Dover TN",
+    }
+
+    assert build_filename(metadata, ai_response, 1) == "2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg"
+
+
+def test_build_filename_falls_back_to_modified_date():
+    metadata = {
+        "original_filename": "camera photo.png",
+        "file_extension": "png",
+        "exif_date_taken": None,
+        "modified_date": "2026-05-20T10:00:00",
+        "camera_model": "Pixel",
+    }
+
+    assert build_filename(metadata, None, 2).startswith("2026-05-20_unknown-location_camera-photo_pixel_002")
+

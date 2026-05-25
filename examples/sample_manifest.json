@@ -1,0 +1,34 @@
+{
+  "run_id": "sample",
+  "timestamp": "2026-05-25T00:00:00+00:00",
+  "input_directory": "./photos",
+  "dry_run": true,
+  "provider_used": "anthropic",
+  "metadata_threshold": 70,
+  "files": [
+    {
+      "original_path": "./photos/IMG_0001.jpg",
+      "new_path": "./photos/2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg",
+      "original_filename": "IMG_0001.jpg",
+      "new_filename": "2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg",
+      "metadata_score": 65,
+      "ai_used": true,
+      "metadata": {
+        "original_filename": "IMG_0001.jpg",
+        "file_extension": "jpg"
+      },
+      "ai_response": {
+        "primary_subject": "shipping-container",
+        "secondary_subject": "",
+        "activity": "deck-construction",
+        "environment": "outdoor",
+        "location_guess": "dover-tn",
+        "confidence": 0.82,
+        "tags": ["construction", "container"],
+        "description": "Shipping container construction work outdoors."
+      },
+      "status": "planned"
+    }
+  ]
+}
+

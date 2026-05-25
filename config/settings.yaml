@@ -1,0 +1,15 @@
+vision_provider: anthropic
+metadata_threshold: 70
+dry_run_default: true
+local_only: false
+
+fallback_order:
+  - anthropic
+  - openai
+  - gemini
+  - ollama
+
+filename_format: "{date}_{location}_{subject}_{context}_{counter}"
+manifest_directory: manifests
+log_file: logs/photosage.log
+
