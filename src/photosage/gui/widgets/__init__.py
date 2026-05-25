@@ -1,0 +1,2 @@
+"""Reusable PhotoSage GUI widgets."""
+

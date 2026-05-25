@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Built the first PySide6 desktop GUI scaffold with a functional main window, folder picker, provider controls, scan and preview table, image and metadata detail panels, settings dialog, undo dialog, worker threads, progress panel, and logging console.
+- Added a GUI service layer that reuses the existing metadata, provider, rename, manifest, and undo backends without duplicating business logic.
+- Added `photosage-gui` entry point and GUI service tests.
 - Added full Ollama local vision support with image preprocessing, supported model validation, configurable endpoint/model/timeouts, malformed JSON retry, and local REST API integration.
 - Added provider health checks plus `photosage providers`, `photosage ollama models`, and `photosage ollama info` commands.
 - Added tests for Ollama endpoint handling, JSON normalization, malformed response retry, timeout handling, health checks, model discovery, and CLI provider output.

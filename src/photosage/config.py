@@ -20,6 +20,10 @@ class AppConfig:
     provider_settings: dict[str, dict[str, Any]] = field(default_factory=dict)
     provider_retry_count: int = 3
     provider_retry_initial_delay: float = 0.5
+    recursive_scanning: bool = True
+    thumbnail_size: int = 128
+    log_level: str = "INFO"
+    max_concurrent_ai_requests: int = 2
 
 
 def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
@@ -47,4 +51,37 @@ def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
         },
         provider_retry_count=int(data.get("provider_retry_count", 3)),
         provider_retry_initial_delay=float(data.get("provider_retry_initial_delay", 0.5)),
+        recursive_scanning=bool(data.get("recursive_scanning", True)),
+        thumbnail_size=int(data.get("thumbnail_size", 128)),
+        log_level=str(data.get("log_level", "INFO")),
+        max_concurrent_ai_requests=int(data.get("max_concurrent_ai_requests", 2)),
     )
+
+
+def config_to_dict(config: AppConfig) -> dict[str, Any]:
+    """Convert app config to YAML serializable data."""
+    data: dict[str, Any] = {
+        "vision_provider": config.vision_provider,
+        "metadata_threshold": config.metadata_threshold,
+        "dry_run_default": config.dry_run_default,
+        "local_only": config.local_only,
+        "fallback_order": config.fallback_order,
+        "filename_format": config.filename_format,
+        "manifest_directory": str(config.manifest_directory),
+        "log_file": str(config.log_file),
+        "provider_retry_count": config.provider_retry_count,
+        "provider_retry_initial_delay": config.provider_retry_initial_delay,
+        "recursive_scanning": config.recursive_scanning,
+        "thumbnail_size": config.thumbnail_size,
+        "log_level": config.log_level,
+        "max_concurrent_ai_requests": config.max_concurrent_ai_requests,
+    }
+    data.update(config.provider_settings)
+    return data
+
+
+def save_config(config: AppConfig, config_path: Path = Path("config/settings.yaml")) -> None:
+    """Persist app config to YAML."""
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with config_path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(config_to_dict(config), handle, sort_keys=False)

@@ -303,6 +303,69 @@ PhotoSage uses Rich tables, panels, progress indicators, and colored statuses.
 
 Verbose mode enables console logs. File logs are always written to `logs/photosage.log`.
 
+## Desktop GUI
+
+PhotoSage includes an initial native desktop interface built with PySide6.
+
+Install with GUI dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
+python -m pip install -e .
+```
+
+Launch:
+
+```powershell
+photosage-gui
+```
+
+The GUI is a frontend over the same backend used by the CLI. It does not duplicate rename, manifest, undo, metadata, or provider logic.
+
+Main GUI workflows:
+
+- Pick or drag a photo folder.
+- Run Scan to inspect supported files and metadata scores.
+- Run Preview to generate proposed filenames and a manifest.
+- Review thumbnails, original names, proposed names, metadata scores, AI status, provider, confidence, file type, date, and location.
+- Select a row to inspect image preview, EXIF metadata, AI response, and filename reasoning.
+- Apply Rename only after a preview and explicit confirmation.
+- Use Undo Last Rename to browse manifests, preview rollback, and restore files safely.
+- Edit provider, threshold, filename format, local-only mode, recursive scanning, thumbnail size, log level, and concurrency settings in the settings dialog.
+
+GUI safety model:
+
+- It never renames automatically.
+- It requires a preview before applying renames.
+- It requires confirmation before applying renames.
+- It uses the existing backend manifest system before file changes.
+- It uses the existing backend undo system for rollback.
+- It preserves extensions and never overwrites files.
+
+GUI screenshots:
+
+Screenshots are not committed yet. Add them later under project docs or release assets after the visual design stabilizes.
+
+Desktop requirements:
+
+- Python 3.11+
+- PySide6
+- Pillow
+- Enough RAM for thumbnail previews and large folder scans
+
+Performance notes:
+
+- Long operations run through Qt worker threads so the UI remains responsive.
+- The first GUI version uses backend batch operations and is structured for later thumbnail caching, batching, and higher concurrency.
+- For 10,000+ image libraries, start with preview-only workflows and local manifests before applying changes.
+
+Troubleshooting:
+
+- If the GUI does not start, verify `PySide6` is installed.
+- If image previews are blank, verify the image format is supported by Qt or Pillow.
+- If rename actions are disabled by workflow, run Preview first.
+- If undo is blocked, inspect the rollback report for missing files or collisions.
+
 ## Rename Workflow
 
 The rename engine does not call live LLM providers. It works from extracted metadata, optional normalized AI classification JSON, and local filesystem state.

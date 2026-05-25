@@ -14,6 +14,10 @@ manifest_directory: manifests
 log_file: logs/photosage.log
 provider_retry_count: 3
 provider_retry_initial_delay: 0.5
+recursive_scanning: true
+thumbnail_size: 128
+log_level: INFO
+max_concurrent_ai_requests: 2
 
 anthropic:
   model: claude-sonnet-4

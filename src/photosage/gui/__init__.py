@@ -1,0 +1,2 @@
+"""PhotoSage desktop GUI package."""
+

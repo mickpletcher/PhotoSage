@@ -18,14 +18,19 @@ dependencies = [
   "anthropic>=0.40.0",
   "openai>=1.0.0",
   "google-genai>=1.0.0",
-  "requests>=2.31.0"
+  "requests>=2.31.0",
+  "PySide6>=6.7.0"
 ]
 
 [project.scripts]
 photosage = "photosage.cli:app"
+photosage-gui = "photosage.gui.app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+photosage = ["gui/resources/styles/*.qss", "gui/resources/icons/.gitkeep"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

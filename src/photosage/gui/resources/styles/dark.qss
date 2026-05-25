@@ -1,0 +1,38 @@
+QMainWindow, QWidget {
+  background: #1f2329;
+  color: #e6e8eb;
+  font-size: 10pt;
+}
+QLineEdit, QTextEdit, QTableWidget, QTreeView, QListWidget, QComboBox, QSpinBox {
+  background: #15191f;
+  color: #e6e8eb;
+  border: 1px solid #3a3f4b;
+  selection-background-color: #2f6feb;
+}
+QPushButton {
+  background: #2d333b;
+  color: #e6e8eb;
+  border: 1px solid #444c56;
+  padding: 6px 10px;
+}
+QPushButton:hover {
+  background: #373e47;
+}
+QPushButton:disabled {
+  color: #7d8590;
+}
+QHeaderView::section {
+  background: #2d333b;
+  color: #e6e8eb;
+  padding: 5px;
+  border: 1px solid #444c56;
+}
+QProgressBar {
+  border: 1px solid #444c56;
+  background: #15191f;
+  text-align: center;
+}
+QProgressBar::chunk {
+  background: #2f6feb;
+}
+
