@@ -18,6 +18,5 @@ def scan_images(input_directory: Path) -> list[Path]:
             logger.info("scanned file: %s", path)
             files.append(path)
         else:
-            logger.info("skipped unsupported file: %s", path)
+            logger.warning("skipped unsupported file: %s", path)
     return files
-

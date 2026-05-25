@@ -10,6 +10,8 @@ Photo metadata is usually safer, cheaper, faster, and more accurate than sending
 
 PhotoSage uses EXIF dates, GPS data, camera details, dimensions, existing keywords, and useful original filenames before any AI fallback. The default metadata threshold is `70`. Scores below that threshold can trigger the configured provider unless `local_only` is enabled.
 
+The metadata engine normalizes filesystem data, image dimensions, camera details, EXIF dates, GPS coordinates, altitude, GPS timestamps, title, description, keywords, and tags into a `PhotoMetadata` dataclass before the rest of the app makes decisions.
+
 ## Core Safety Model
 
 - No file is renamed unless `--apply` is passed.
