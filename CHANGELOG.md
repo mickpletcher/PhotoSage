@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Built the phase 4 rename engine with deterministic filename building, hardened sanitization, cached collision prevention, dry-run previews, apply mode, manifests, and rollback support.
+- Added Rich CLI output for scan, preview, rename, and undo summaries.
+- Added tests for rename preview, apply, rollback, Unicode sanitization, reserved Windows names, duplicate handling, and dry-run undo behavior.
 - Added `completed-upgrades.md` to track upgrades moved from `future-upgrades.md` after completion.
 - Built the phase 3 provider abstraction layer with factory, manager, retry handling, response normalization, provider exceptions, and local only enforcement.
 - Added provider implementations for Anthropic, OpenAI, Gemini, and local Ollama with normalized structured JSON output.
@@ -29,3 +32,4 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 ### Changed
 
 - Ensured `future-upgrades.md` is ignored in `.gitignore` and untracked from git index so it will not be pushed.
+- Reworked `future-upgrades.md` into a three tier roadmap with clearer, action oriented upgrade suggestions.

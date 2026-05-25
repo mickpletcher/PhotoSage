@@ -186,6 +186,48 @@ Undo a rename run:
 photosage undo --manifest ./manifests/rename_manifest.json
 ```
 
+## Rename Workflow
+
+The rename engine does not call live LLM providers. It works from extracted metadata, optional normalized AI classification JSON, and local filesystem state.
+
+Use this workflow:
+
+1. Run `photosage preview --input ./photos`.
+2. Review proposed filenames and the generated dry-run manifest.
+3. Run `photosage rename --input ./photos --apply` only when the preview is acceptable.
+4. Use `photosage undo --manifest ./manifests/file.json` if you need to restore renamed files.
+
+Metadata-only rename example:
+
+```text
+IMG_0001.jpg -> 2026-05-25_gps-location_shipping-container_canon-r5_001.jpg
+```
+
+Metadata plus AI classification example:
+
+```json
+{
+  "primary_subject": "shipping container",
+  "activity": "deck construction",
+  "location_guess": "dover tn"
+}
+```
+
+```text
+IMG_0001.jpg -> 2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg
+```
+
+Preview mode writes a manifest with `status: planned` and does not rename files. Apply mode writes a manifest before changing files, then records `renamed`, `missing`, `overwrite-prevented`, `unchanged`, or `error` for each item.
+
+Collision handling never overwrites files. PhotoSage scans target names once per directory, tracks planned names during the batch, and advances counters as needed:
+
+```text
+2026-05-25_dover-tn_deck_001.jpg
+2026-05-25_dover-tn_deck_002.jpg
+```
+
+Undo reads the manifest and safely reverses renamed files. It skips missing files, prevents overwrite conflicts, supports partial rollback, and logs every result.
+
 ## Filename Format
 
 PhotoSage builds filenames locally with deterministic code.
@@ -206,6 +248,8 @@ Rules:
 - Lowercase filenames.
 - Replace spaces with hyphens.
 - Remove unsafe characters.
+- Normalize Unicode to portable ASCII.
+- Prevent Windows reserved filenames like `CON`, `PRN`, `AUX`, `NUL`, `COM1`, and `LPT1`.
 - Limit filename length to 180 characters.
 - Preserve the original extension.
 - Add counters to prevent overwrites.
@@ -219,6 +263,12 @@ Example:
 ## Manifest And Undo
 
 Every preview or rename creates a manifest under `manifests/`.
+
+Manifest filename format:
+
+```text
+rename_manifest_YYYYMMDD_HHMMSS.json
+```
 
 The manifest records:
 

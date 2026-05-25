@@ -11,3 +11,10 @@ def test_sanitize_filename_preserves_extension_and_limits_length():
     assert filename.endswith(".jpg")
     assert len(filename) <= 180
 
+
+def test_sanitize_part_normalizes_unicode_and_removes_emoji():
+    assert sanitize_part("São Francisco 📷") == "sao-francisco"
+
+
+def test_sanitize_part_prevents_windows_reserved_names():
+    assert sanitize_part("CON") == "con-file"

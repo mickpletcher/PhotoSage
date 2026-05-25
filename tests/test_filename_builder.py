@@ -31,3 +31,16 @@ def test_build_filename_falls_back_to_modified_date():
 
     assert build_filename(metadata, None, 2).startswith("2026-05-20_unknown-location_camera-photo_pixel_002")
 
+
+def test_build_filename_skips_empty_ai_fields_without_double_underscores():
+    metadata = {
+        "original_filename": "IMG_0001.jpg",
+        "file_extension": "jpg",
+        "modified_date": "2026-05-20T10:00:00",
+    }
+    ai_response = {"primary_subject": "", "secondary_subject": "Deck", "activity": ""}
+
+    filename = build_filename(metadata, ai_response, 1)
+
+    assert "__" not in filename
+    assert filename == "2026-05-20_unknown-location_deck_photo_001.jpg"
