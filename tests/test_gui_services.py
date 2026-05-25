@@ -41,7 +41,6 @@ def test_gui_preview_apply_and_undo_services_use_backend(tmp_path):
 
 
 def test_gui_qt_modules_import_when_pyside_available():
-    pytest.importorskip("PySide6")
+    pytest.importorskip("PySide6.QtWidgets")
     import photosage.gui.app  # noqa: F401
     import photosage.gui.main_window  # noqa: F401
-
