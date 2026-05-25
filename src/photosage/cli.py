@@ -18,6 +18,7 @@ from photosage.manifest.manifest_reader import ManifestValidationError
 from photosage.manifest.undo import rollback_all
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
+from photosage.providers.healthcheck import check_providers, list_ollama_models, ollama_info
 from photosage.rename.renamer import preview_renames, rename_files
 from photosage.scanner import count_unsupported_files, scan_images
 
@@ -27,6 +28,8 @@ app = typer.Typer(
     help="Metadata-first AI photo organization and safe renaming CLI.",
     epilog="Examples: photosage scan --input ./photos | photosage preview --input ./photos | photosage rename --input ./photos --apply | photosage undo --manifest ./manifests/file.json",
 )
+ollama_app = typer.Typer(help="Inspect local Ollama vision model support.")
+app.add_typer(ollama_app, name="ollama")
 console = Console()
 
 
@@ -139,6 +142,70 @@ def _scan_summary(input_path: Path, config: AppConfig, recursive: bool, force_ai
         },
         "files": rows,
     }
+
+
+@app.command(help="Show configured provider availability and local/cloud status.")
+def providers(
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config, verbose=verbose)
+    table = Table(title="Available Providers")
+    table.add_column("Status")
+    table.add_column("Provider")
+    table.add_column("Model")
+    table.add_column("Endpoint")
+    table.add_column("Message", overflow="fold")
+    for health in check_providers(cli_config):
+        style = "green" if health.status == "OK" else ("yellow" if health.status == "DISABLED" else "red")
+        table.add_row(f"[{style}]{health.status}[/{style}]", health.name, health.model, health.endpoint, health.message)
+    console.print(table)
+
+
+@ollama_app.command("models", help="List locally installed Ollama models.")
+def ollama_models(
+    endpoint: Annotated[Optional[str], typer.Option("--endpoint", help="Ollama endpoint override.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config)
+    settings = cli_config.provider_settings.get("ollama", {})
+    ollama_endpoint = endpoint or str(settings.get("endpoint") or "http://localhost:11434")
+    timeout_seconds = float(settings.get("healthcheck_timeout_seconds") or 5)
+    try:
+        models = list_ollama_models(ollama_endpoint, timeout_seconds)
+    except Exception as error:
+        console.print(f"[red]ERROR: Ollama server not reachable at {ollama_endpoint}[/red]")
+        console.print(str(error))
+        raise typer.Exit(code=1) from error
+
+    table = Table(title="Installed Ollama Models")
+    table.add_column("Model")
+    for model in models:
+        table.add_row(model)
+    console.print(table)
+
+
+@ollama_app.command("info", help="Show best-effort Ollama diagnostics.")
+def ollama_info_command(
+    endpoint: Annotated[Optional[str], typer.Option("--endpoint", help="Ollama endpoint override.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config)
+    settings = cli_config.provider_settings.get("ollama", {})
+    ollama_endpoint = endpoint or str(settings.get("endpoint") or "http://localhost:11434")
+    timeout_seconds = float(settings.get("healthcheck_timeout_seconds") or 5)
+    info = ollama_info(ollama_endpoint, timeout_seconds)
+
+    table = Table(title="Ollama Info")
+    table.add_column("Field")
+    table.add_column("Value", overflow="fold")
+    table.add_row("Endpoint", str(info["endpoint"]))
+    table.add_row("Version", str(info["version"]))
+    table.add_row("Models", ", ".join(info["models"]) if info["models"] else "none detected")
+    table.add_row("GPU usage", str(info["gpu_usage"]))
+    table.add_row("VRAM estimate", str(info["vram_estimate"]))
+    table.add_row("Inference mode", str(info["inference_mode"]))
+    console.print(table)
 
 
 @app.command(help="Scan supported image files, score metadata, and show whether AI would be required.")

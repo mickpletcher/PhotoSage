@@ -24,3 +24,6 @@ class RetryLimitExceededError(ProviderError):
 class UnsupportedProviderError(ProviderError):
     """Requested provider is not supported."""
 
+
+class UnsupportedModelError(ProviderError):
+    """Requested model is not supported by a provider integration."""

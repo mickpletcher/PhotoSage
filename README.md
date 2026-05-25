@@ -90,18 +90,81 @@ This prevents PhotoSage from uploading images to Anthropic, OpenAI, or Gemini.
 
 ### Ollama Setup
 
-Install Ollama and pull a local multimodal model:
+Ollama runs models locally. This is the privacy-first option because image bytes stay on your machine.
+
+Install Ollama:
+
+- Windows: install from [https://ollama.com](https://ollama.com), then run commands in PowerShell.
+- macOS: install from [https://ollama.com](https://ollama.com). Apple Silicon is strongly preferred.
+- Linux: install Ollama from the official installer and make sure the service is running.
+
+Pull a local multimodal model:
 
 ```powershell
 ollama pull llava
+ollama pull llava:13b
+ollama pull qwen2.5vl
 ```
 
 Supported local model targets include:
 
 - `llava`
+- `llava:13b`
+- `llava:34b`
+- `bakllava`
 - `minicpm-v`
-- `qwen-vl`
+- `qwen2.5vl`
+- `moondream`
 - future Ollama vision models
+
+Configure Ollama in [config/settings.yaml](config/settings.yaml):
+
+```yaml
+vision_provider: ollama
+local_only: true
+
+ollama:
+  endpoint: http://localhost:11434
+  model: llava:13b
+  timeout_seconds: 180
+  healthcheck_timeout_seconds: 5
+  temperature: 0.1
+  max_dimension: 1600
+  jpeg_quality: 90
+```
+
+Check providers:
+
+```powershell
+photosage providers
+```
+
+List installed Ollama models:
+
+```powershell
+photosage ollama models
+```
+
+Show best-effort Ollama diagnostics:
+
+```powershell
+photosage ollama info
+```
+
+When `local_only: true`, PhotoSage blocks cloud providers. If Ollama is unavailable, it fails safely instead of falling back to Anthropic, OpenAI, or Gemini.
+
+Recommended hardware:
+
+- Minimum: 16 GB RAM
+- Recommended: 32 GB RAM, Apple Silicon, or an NVIDIA GPU
+- High performance: 64 GB or more RAM, RTX 3090 or RTX 4090, or Mac Studio Ultra
+
+Model notes:
+
+- `llava` is a practical first test model.
+- `llava:13b` is a stronger default if you have enough memory.
+- `qwen2.5vl` is a good candidate for more detailed visual reasoning.
+- Larger models need more RAM or VRAM and may run slowly on CPU only.
 
 ## Install
 

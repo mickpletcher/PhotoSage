@@ -7,8 +7,10 @@ from photosage.providers.exceptions import (
     ProviderError,
     ProviderUnavailableError,
     RetryLimitExceededError,
+    UnsupportedModelError,
     UnsupportedProviderError,
 )
+from photosage.providers.healthcheck import ProviderHealth, check_ollama, check_providers, list_ollama_models, ollama_info
 from photosage.providers.provider_factory import ProviderFactory
 from photosage.providers.provider_manager import ProviderManager
 
@@ -23,10 +25,16 @@ __all__ = [
     "InvalidResponseError",
     "ProviderError",
     "ProviderFactory",
+    "ProviderHealth",
     "ProviderManager",
     "ProviderUnavailableError",
     "RetryLimitExceededError",
+    "UnsupportedModelError",
     "UnsupportedProviderError",
     "VisionProvider",
+    "check_ollama",
+    "check_providers",
     "get_provider",
+    "list_ollama_models",
+    "ollama_info",
 ]

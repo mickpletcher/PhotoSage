@@ -154,3 +154,30 @@ def test_cli_undo_dry_run_does_not_move(tmp_path):
     assert result.exit_code == 0
     assert renamed.exists()
     assert not original.exists()
+
+
+def test_cli_ollama_models_lists_installed_models(monkeypatch, tmp_path):
+    config = tmp_path / "config.yaml"
+    _write_config(config)
+    monkeypatch.setattr("photosage.cli.list_ollama_models", lambda endpoint, timeout_seconds: ["llava", "llava:13b"])
+
+    result = runner.invoke(app, ["ollama", "models", "--config", str(config)])
+
+    assert result.exit_code == 0
+    assert "llava:13b" in result.stdout
+
+
+def test_cli_providers_displays_health(monkeypatch, tmp_path):
+    config = tmp_path / "config.yaml"
+    _write_config(config)
+    monkeypatch.setattr(
+        "photosage.cli.check_providers",
+        lambda cli_config: [
+            type("Health", (), {"status": "OK", "name": "ollama", "model": "llava", "endpoint": "http://localhost:11434", "message": "ok"})()
+        ],
+    )
+
+    result = runner.invoke(app, ["providers", "--config", str(config)])
+
+    assert result.exit_code == 0
+    assert "ollama" in result.stdout

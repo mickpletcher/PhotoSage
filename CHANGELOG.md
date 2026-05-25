@@ -8,6 +8,9 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added full Ollama local vision support with image preprocessing, supported model validation, configurable endpoint/model/timeouts, malformed JSON retry, and local REST API integration.
+- Added provider health checks plus `photosage providers`, `photosage ollama models`, and `photosage ollama info` commands.
+- Added tests for Ollama endpoint handling, JSON normalization, malformed response retry, timeout handling, health checks, model discovery, and CLI provider output.
 - Built the phase 6 CLI with Rich scan, preview, rename, and undo screens, provider overrides, local-only mode, recursive controls, verbose logging, JSON exports, and apply safety enforcement.
 - Added CLI tests for argument handling, provider overrides, JSON output, rename safety, preview output, and undo dry-run behavior.
 - Built the phase 5 undo system with manifest parsing, rollback validation, dry-run support, collision prevention, partial rollback handling, and rollback reports.

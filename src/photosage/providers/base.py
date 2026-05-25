@@ -48,6 +48,13 @@ class VisionProvider(ABC):
         return base64.b64encode(image_path.read_bytes()).decode("ascii")
 
 
+def _prompt_template() -> str:
+    prompt_path = Path("prompts/image_classification.md")
+    if prompt_path.exists():
+        return prompt_path.read_text(encoding="utf-8")
+    return "Classify image content for a photo organization tool. Return JSON only."
+
+
 def build_provider_prompt(metadata: dict[str, Any]) -> str:
     """Build a provider prompt that asks only for factual classification JSON."""
     safe_metadata = {
@@ -56,7 +63,7 @@ def build_provider_prompt(metadata: dict[str, Any]) -> str:
         if key not in {"raw_metadata"} and value not in (None, "", [], {})
     }
     return (
-        "Classify this image for a photo organization tool. "
+        f"{_prompt_template()}\n\n"
         "Return JSON only. Do not rename the file. Do not output markdown. "
         "Do not identify private people unless names already exist in metadata. "
         "Avoid speculation, emotional descriptions, and assumptions. "
@@ -65,4 +72,3 @@ def build_provider_prompt(metadata: dict[str, Any]) -> str:
         "location_guess, confidence, tags, description. "
         f"Metadata: {safe_metadata}"
     )
-
