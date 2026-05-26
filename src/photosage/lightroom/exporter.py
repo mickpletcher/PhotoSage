@@ -6,8 +6,10 @@ from pathlib import Path
 from typing import Any, Callable
 
 from photosage.config import AppConfig
+from photosage.duplicates.detector import duplicate_index, find_duplicate_groups
+from photosage.geocoding.cache import GeocodeCache
 from photosage.lightroom.catalog_safety import validate_lightroom_export_directory
-from photosage.lightroom.folder_organizer import category_for_photo, organized_destination
+from photosage.lightroom.folder_organizer import category_for_photo, organized_destination, policy_destination
 from photosage.lightroom.metadata_mapper import lightroom_score_bonus, merge_lightroom_metadata
 from photosage.lightroom.presets import LightroomPreset, get_preset
 from photosage.lightroom.xmp_reader import read_xmp_sidecar, sidecar_path_for_image
@@ -49,6 +51,16 @@ def _effective_config(config: AppConfig, preset: LightroomPreset | None) -> AppC
         thumbnail_size=config.thumbnail_size,
         log_level=config.log_level,
         max_concurrent_ai_requests=config.max_concurrent_ai_requests,
+        watch_folders=config.watch_folders,
+        watch_stable_seconds=config.watch_stable_seconds,
+        duplicate_hash_distance=config.duplicate_hash_distance,
+        geocode_cache_file=config.geocode_cache_file,
+        geocode_cache_ttl_days=config.geocode_cache_ttl_days,
+        folder_policy=config.folder_policy,
+        folder_keyword_map=config.folder_keyword_map,
+        thumbnail_cache_directory=config.thumbnail_cache_directory,
+        profile_directory=config.profile_directory,
+        recent_manifest_file=config.recent_manifest_file,
     )
 
 
@@ -56,6 +68,22 @@ def _ai_for_path(image_path: Path, ai_responses: dict[str, dict[str, Any]] | Non
     if not ai_responses:
         return None
     return ai_responses.get(str(image_path)) or ai_responses.get(str(image_path.resolve())) or ai_responses.get(image_path.name)
+
+
+def _apply_geocode_cache(metadata: dict[str, Any], config: AppConfig) -> dict[str, Any]:
+    latitude = metadata.get("latitude") or metadata.get("gps_latitude")
+    longitude = metadata.get("longitude") or metadata.get("gps_longitude")
+    try:
+        latitude_value = float(latitude) if latitude is not None else None
+        longitude_value = float(longitude) if longitude is not None else None
+    except (TypeError, ValueError):
+        return metadata
+    cached = GeocodeCache(config.geocode_cache_file, config.geocode_cache_ttl_days).resolve(latitude_value, longitude_value)
+    if cached:
+        metadata = dict(metadata)
+        metadata["location"] = cached
+        metadata["location_source"] = "geocode-cache"
+    return metadata
 
 
 def build_lightroom_manifest(
@@ -82,8 +110,11 @@ def build_lightroom_manifest(
     provider_used: str | None = None
     provider_manager = ProviderManager(effective) if analyze_ai else None
 
-    for image_path in scan_images(input_directory, recursive=recursive):
-        metadata = extract_metadata(image_path)
+    scanned_images = scan_images(input_directory, recursive=recursive)
+    duplicate_data = duplicate_index(find_duplicate_groups(scanned_images, effective.duplicate_hash_distance))
+
+    for image_path in scanned_images:
+        metadata = _apply_geocode_cache(extract_metadata(image_path), effective)
         xmp_metadata = read_xmp_sidecar(image_path)
         merged_metadata = merge_lightroom_metadata(metadata, xmp_metadata)
         metadata_score = min(100, score_metadata(merged_metadata) + lightroom_score_bonus(xmp_metadata))
@@ -105,13 +136,17 @@ def build_lightroom_manifest(
         target_directory = image_path.parent
         if organize:
             preliminary_name = build_filename(merged_metadata, ai_response, 1, effective.filename_format)
-            target_directory = organized_destination(
-                input_directory,
-                merged_metadata,
-                preliminary_name,
-                ai_response,
-                preset.category if preset else None,
-            ).parent
+            if effective.folder_policy == "date-first" and not effective.folder_keyword_map:
+                target_directory = organized_destination(input_directory, merged_metadata, preliminary_name, ai_response, preset.category if preset else None).parent
+            else:
+                target_directory = policy_destination(
+                    input_directory,
+                    merged_metadata,
+                    preliminary_name,
+                    ai_response,
+                    effective.folder_policy,
+                    effective.folder_keyword_map,
+                ).parent
 
         directory_key = target_directory.resolve()
         existing = existing_by_directory.setdefault(directory_key, existing_names(target_directory))
@@ -133,6 +168,7 @@ def build_lightroom_manifest(
         category = category_for_photo(merged_metadata, ai_response, preset.category if preset else None)
         status = "ai-unavailable" if ai_attempted and not ai_used else ("planned" if dry_run else "pending")
 
+        duplicate_info = duplicate_data.get(str(image_path.resolve()), {})
         files.append(
             {
                 "original_path": str(image_path.resolve()),
@@ -153,6 +189,9 @@ def build_lightroom_manifest(
                 "organization_applied": organize,
                 "category": category,
                 "sidecar_status": "planned" if new_sidecar_path else "none",
+                "duplicate_group_id": duplicate_info.get("duplicate_group_id"),
+                "duplicate_hash": duplicate_info.get("duplicate_hash"),
+                "duplicate_distance": duplicate_info.get("duplicate_distance"),
             }
         )
         logger.info(

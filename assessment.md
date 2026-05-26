@@ -26,6 +26,11 @@ The project is no longer just a scaffold. The main architecture is in place.
 - Lightroom export folder support
 - XMP sidecar parsing and rename sync
 - Screenshot and document image labeling
+- Watch folder approval queues
+- Duplicate detection with local perceptual hashes
+- Folder organization policies
+- Local reverse geocoding cache
+- GUI thumbnail cache and recent manifest helpers
 - Pytest coverage across core modules
 
 ## Core Flow
@@ -77,6 +82,9 @@ photosage preview --input ./photos
 photosage rename --input ./photos --apply
 photosage undo --manifest ./manifests/rename_manifest.json
 photosage manifest validate --manifest ./manifests/rename_manifest.json
+photosage duplicates --input ./photos --output-json ./duplicates.json
+photosage watch --input ./IncomingPhotos
+photosage geocode list
 photosage providers
 photosage ollama models
 photosage lightroom-process --input ./LightroomExports --preview
@@ -105,7 +113,7 @@ python -m pytest
 Most recent known result:
 
 ```text
-87 passed, 1 skipped
+103+ passed, 1 skipped
 ```
 
 The skipped test is expected when optional GUI pieces are unavailable.
@@ -116,10 +124,9 @@ Good next work:
 
 1. Implement LM Studio provider from `specs/001-lm-studio-provider/`.
 2. Add stronger end-to-end CLI smoke tests around provider-backed preview.
-3. Add reverse geocoding cache.
-4. Improve GUI performance for large folders.
-5. Add duplicate detection.
-6. Add folder watcher mode.
+3. Add provider benchmarking.
+4. Add manual review queue editing.
+5. Add native catalog integrations.
 
 ## Future Agent Checklist
 

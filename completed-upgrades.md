@@ -33,3 +33,8 @@ When an upgrade is completed:
 - Hardened local-only provider selection and CLI visibility.
 - Added screenshot and document mode for mixed image libraries.
 - Added live AI analysis pipeline for preview and apply planning.
+- Added folder watcher approval queues.
+- Added duplicate detection with perceptual hashing and JSON reports.
+- Added GUI performance helpers for thumbnail caching and recent manifests.
+- Added folder organization policies.
+- Added local reverse geocoding cache.

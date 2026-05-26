@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any, Callable
 
 from photosage.config import AppConfig
+from photosage.duplicates.detector import duplicate_index, find_duplicate_groups
+from photosage.geocoding.cache import GeocodeCache
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
 from photosage.manifest.undo import undo_from_manifest
 from photosage.metadata.exif_reader import extract_metadata
@@ -33,6 +35,22 @@ def _ai_for_path(image_path: Path, ai_responses: dict[str, dict[str, Any]] | Non
     return ai_responses.get(str(image_path)) or ai_responses.get(str(image_path.resolve())) or ai_responses.get(image_path.name)
 
 
+def _apply_geocode_cache(metadata: dict[str, Any], config: AppConfig) -> dict[str, Any]:
+    latitude = metadata.get("latitude") or metadata.get("gps_latitude")
+    longitude = metadata.get("longitude") or metadata.get("gps_longitude")
+    try:
+        latitude_value = float(latitude) if latitude is not None else None
+        longitude_value = float(longitude) if longitude is not None else None
+    except (TypeError, ValueError):
+        return metadata
+    cached = GeocodeCache(config.geocode_cache_file, config.geocode_cache_ttl_days).resolve(latitude_value, longitude_value)
+    if cached:
+        metadata = dict(metadata)
+        metadata["location"] = cached
+        metadata["location_source"] = "geocode-cache"
+    return metadata
+
+
 def build_rename_manifest(
     input_directory: Path,
     config: AppConfig,
@@ -49,8 +67,11 @@ def build_rename_manifest(
     provider_used: str | None = None
     provider_manager = ProviderManager(config) if analyze_ai else None
 
-    for image_path in scan_images(input_directory, recursive=recursive):
-        metadata = extract_metadata(image_path)
+    scanned_images = scan_images(input_directory, recursive=recursive)
+    duplicate_data = duplicate_index(find_duplicate_groups(scanned_images, config.duplicate_hash_distance))
+
+    for image_path in scanned_images:
+        metadata = _apply_geocode_cache(extract_metadata(image_path), config)
         metadata_score = score_metadata(metadata)
         ai_response = _ai_for_path(image_path, ai_responses)
         ai_required = force_ai or metadata_score < config.metadata_threshold
@@ -86,6 +107,7 @@ def build_rename_manifest(
 
         logger.info("preview rename original=%s new=%s metadata_score=%s ai_used=%s", image_path, new_path, metadata_score, ai_used)
 
+        duplicate_info = duplicate_data.get(str(image_path.resolve()), {})
         files.append(
             {
                 "original_path": str(image_path.resolve()),
@@ -99,6 +121,9 @@ def build_rename_manifest(
                 "status": "ai-unavailable" if ai_attempted and not ai_used else ("planned" if dry_run else "pending"),
                 "metadata": metadata,
                 "ai_response": ai_response or {},
+                "duplicate_group_id": duplicate_info.get("duplicate_group_id"),
+                "duplicate_hash": duplicate_info.get("duplicate_hash"),
+                "duplicate_distance": duplicate_info.get("duplicate_distance"),
             }
         )
 

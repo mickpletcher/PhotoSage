@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from photosage.lightroom.metadata_mapper import category_from_metadata
+from photosage.organization.policies import destination_for_policy
 from photosage.rename.filename_builder import date_for_filename
 from photosage.rename.sanitizer import sanitize_part
 
@@ -26,3 +27,13 @@ def organized_destination(root: Path, metadata: dict, filename: str, ai_response
     category = category_for_photo(metadata, ai_response, preset_category)
     return destination_directory(root, metadata, category) / filename
 
+
+def policy_destination(
+    root: Path,
+    metadata: dict,
+    filename: str,
+    ai_response: dict | None = None,
+    policy: str = "date-first",
+    keyword_map: dict[str, str] | None = None,
+) -> Path:
+    return destination_for_policy(root, metadata, ai_response, filename, policy, keyword_map)

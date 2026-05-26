@@ -35,10 +35,12 @@ class PreviewTable(QTableWidget):
         self.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+        self.verticalHeader().setDefaultSectionSize(24)
         self.horizontalHeader().setStretchLastSection(True)
         self.itemSelectionChanged.connect(self._emit_selection)
 
     def load_rows(self, rows: list[dict[str, Any]]) -> None:
+        self.setUpdatesEnabled(False)
         self.setSortingEnabled(False)
         self.rows = rows
         self.setRowCount(len(rows))
@@ -46,7 +48,7 @@ class PreviewTable(QTableWidget):
             ai_response = row.get("ai_response") or {}
             metadata = row.get("metadata") or {}
             values = [
-                "",
+                row.get("thumbnail_path", ""),
                 row.get("original_filename", ""),
                 row.get("new_filename") or row.get("proposed_filename") or "",
                 row.get("metadata_score", ""),
@@ -64,6 +66,7 @@ class PreviewTable(QTableWidget):
                 item.setBackground(self._status_color(row))
                 self.setItem(row_index, column, item)
         self.setSortingEnabled(True)
+        self.setUpdatesEnabled(True)
 
     def filter_text(self, text: str) -> None:
         query = text.lower().strip()

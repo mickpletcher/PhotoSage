@@ -18,6 +18,16 @@ recursive_scanning: true
 thumbnail_size: 128
 log_level: INFO
 max_concurrent_ai_requests: 2
+watch_folders: []
+watch_stable_seconds: 5.0
+duplicate_hash_distance: 5
+geocode_cache_file: .photosage-cache/geocode_cache.json
+geocode_cache_ttl_days: 365
+folder_policy: date-first
+folder_keyword_map: {}
+thumbnail_cache_directory: .photosage-cache/thumbnails
+profile_directory: .photosage-cache/profiles
+recent_manifest_file: .photosage-cache/recent_manifests.json
 
 anthropic:
   model: claude-sonnet-4

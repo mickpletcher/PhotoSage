@@ -29,6 +29,10 @@ becomes something useful like:
 - Includes local Ollama provider support.
 - Supports Lightroom export folders and XMP sidecars.
 - Includes an early PySide6 desktop GUI.
+- Watches incoming folders with an approval queue.
+- Finds likely duplicate photos without deleting anything.
+- Supports folder organization policies.
+- Uses a local geocode cache for consistent GPS names.
 
 ## Safety Rules
 
@@ -128,6 +132,30 @@ Validate a manifest before undo:
 photosage manifest validate --manifest ./manifests/rename_manifest.json
 ```
 
+Find likely duplicates:
+
+```powershell
+photosage duplicates --input ./photos --output-json ./duplicates.json
+```
+
+Build a watch folder approval queue:
+
+```powershell
+photosage watch --input ./IncomingPhotos
+```
+
+Apply a watch folder run only after approval:
+
+```powershell
+photosage watch --input ./IncomingPhotos --apply
+```
+
+Save a GPS location alias:
+
+```powershell
+photosage geocode set --lat 36.50000 --lon -87.84000 --location dover-tn
+```
+
 Undo for real:
 
 ```powershell
@@ -152,6 +180,10 @@ metadata_threshold: 70
 dry_run_default: true
 local_only: false
 filename_format: "{date}_{location}_{subject}_{context}_{counter}"
+watch_stable_seconds: 5.0
+duplicate_hash_distance: 5
+folder_policy: date-first
+geocode_cache_file: .photosage-cache/geocode_cache.json
 ```
 
 `metadata_threshold` controls when a file is marked as needing AI help.
@@ -319,6 +351,8 @@ Use it to:
 
 The GUI is functional but still early.
 
+The GUI now includes thumbnail caching, faster large table loading, saved profile helpers, and recent manifest tracking for faster undo workflows.
+
 ## Filename Format
 
 Default format:
@@ -336,6 +370,67 @@ Rules:
 - Replace spaces with hyphens.
 - Remove unsafe characters.
 - Add counters to prevent overwrites.
+
+## Watch Folders
+
+Watch mode is for incoming folders, such as camera imports or synced folders.
+
+Default behavior is safe:
+
+- It only includes files that are stable.
+- It writes an approval queue manifest.
+- It does not rename unless `--apply` is passed.
+- It groups each run into a normal PhotoSage manifest.
+
+```powershell
+photosage watch --input ./IncomingPhotos
+photosage watch --input ./IncomingPhotos --apply
+```
+
+## Duplicate Detection
+
+PhotoSage can find likely duplicate images with local perceptual hashing.
+
+It does not delete anything.
+
+```powershell
+photosage duplicates --input ./photos --output-json ./duplicates.json
+```
+
+Duplicate group data is also added to rename manifests when matches are found.
+
+## Folder Organization Policies
+
+Organization policies choose folders when organization mode is used.
+
+Supported policies:
+
+- `date-first`
+- `location-first`
+- `project-first`
+- `custom`
+
+Example config:
+
+```yaml
+folder_policy: project-first
+folder_keyword_map:
+  construction: container-home
+  astronomy: astrophotography
+```
+
+## Geocode Cache
+
+The geocode cache stores local GPS to location names.
+
+It avoids repeated lookups later and keeps filenames consistent.
+
+```powershell
+photosage geocode set --lat 36.50000 --lon -87.84000 --location dover-tn
+photosage geocode list
+```
+
+If PhotoSage sees matching GPS coordinates, it uses the cached location in filenames.
 
 ## Screenshot And Document Mode
 

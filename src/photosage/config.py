@@ -25,6 +25,16 @@ class AppConfig:
     thumbnail_size: int = 128
     log_level: str = "INFO"
     max_concurrent_ai_requests: int = 2
+    watch_folders: list[Path] = field(default_factory=list)
+    watch_stable_seconds: float = 5.0
+    duplicate_hash_distance: int = 5
+    geocode_cache_file: Path = Path(".photosage-cache/geocode_cache.json")
+    geocode_cache_ttl_days: int = 365
+    folder_policy: str = "date-first"
+    folder_keyword_map: dict[str, str] = field(default_factory=dict)
+    thumbnail_cache_directory: Path = Path(".photosage-cache/thumbnails")
+    profile_directory: Path = Path(".photosage-cache/profiles")
+    recent_manifest_file: Path = Path(".photosage-cache/recent_manifests.json")
 
 
 def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
@@ -57,6 +67,16 @@ def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
         thumbnail_size=int(data.get("thumbnail_size", 128)),
         log_level=str(data.get("log_level", "INFO")),
         max_concurrent_ai_requests=int(data.get("max_concurrent_ai_requests", 2)),
+        watch_folders=[Path(path) for path in data.get("watch_folders", [])],
+        watch_stable_seconds=float(data.get("watch_stable_seconds", 5.0)),
+        duplicate_hash_distance=int(data.get("duplicate_hash_distance", 5)),
+        geocode_cache_file=Path(data.get("geocode_cache_file", ".photosage-cache/geocode_cache.json")),
+        geocode_cache_ttl_days=int(data.get("geocode_cache_ttl_days", 365)),
+        folder_policy=str(data.get("folder_policy", "date-first")),
+        folder_keyword_map=dict(data.get("folder_keyword_map", {}) or {}),
+        thumbnail_cache_directory=Path(data.get("thumbnail_cache_directory", ".photosage-cache/thumbnails")),
+        profile_directory=Path(data.get("profile_directory", ".photosage-cache/profiles")),
+        recent_manifest_file=Path(data.get("recent_manifest_file", ".photosage-cache/recent_manifests.json")),
     )
 
 
@@ -77,6 +97,16 @@ def config_to_dict(config: AppConfig) -> dict[str, Any]:
         "thumbnail_size": config.thumbnail_size,
         "log_level": config.log_level,
         "max_concurrent_ai_requests": config.max_concurrent_ai_requests,
+        "watch_folders": [str(path) for path in config.watch_folders],
+        "watch_stable_seconds": config.watch_stable_seconds,
+        "duplicate_hash_distance": config.duplicate_hash_distance,
+        "geocode_cache_file": str(config.geocode_cache_file),
+        "geocode_cache_ttl_days": config.geocode_cache_ttl_days,
+        "folder_policy": config.folder_policy,
+        "folder_keyword_map": config.folder_keyword_map,
+        "thumbnail_cache_directory": str(config.thumbnail_cache_directory),
+        "profile_directory": str(config.profile_directory),
+        "recent_manifest_file": str(config.recent_manifest_file),
     }
     data.update(config.provider_settings)
     return data

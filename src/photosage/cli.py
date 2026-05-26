@@ -13,6 +13,8 @@ from rich.progress import Progress, TextColumn
 from rich.table import Table
 
 from photosage.config import AppConfig, load_config
+from photosage.duplicates.detector import find_duplicate_groups, write_duplicate_report
+from photosage.geocoding.cache import GeocodeCache
 from photosage.lightroom.catalog_safety import CatalogSafetyError
 from photosage.lightroom.exporter import process_lightroom_export
 from photosage.logging_config import configure_logging
@@ -24,6 +26,7 @@ from photosage.metadata.metadata_score import score_metadata
 from photosage.providers.healthcheck import check_providers, list_ollama_models, ollama_info
 from photosage.rename.renamer import preview_renames, rename_files
 from photosage.scanner import count_unsupported_files, scan_images
+from photosage.watch.folder_watcher import process_watch_once
 
 SUPPORTED_PROVIDERS = {"anthropic", "openai", "gemini", "ollama"}
 
@@ -33,8 +36,10 @@ app = typer.Typer(
 )
 ollama_app = typer.Typer(help="Inspect local Ollama vision model support.")
 manifest_app = typer.Typer(help="Inspect and validate PhotoSage manifests.")
+geocode_app = typer.Typer(help="Manage local reverse geocoding aliases and cache entries.")
 app.add_typer(ollama_app, name="ollama")
 app.add_typer(manifest_app, name="manifest")
+app.add_typer(geocode_app, name="geocode")
 console = Console()
 
 
@@ -81,6 +86,7 @@ def _preview_table(files: list[dict[str, Any]], title: str = "PhotoSage Rename P
     table.add_column("AI", justify="center")
     table.add_column("Provider")
     table.add_column("Confidence", justify="right")
+    table.add_column("Duplicate")
     for item in files:
         ai_response = item.get("ai_response") or {}
         ai_flag = "yes" if item.get("ai_used") or item.get("ai_required") else "no"
@@ -94,6 +100,7 @@ def _preview_table(files: list[dict[str, Any]], title: str = "PhotoSage Rename P
             ai_flag,
             ai_response.get("provider") or "",
             str(ai_response.get("confidence", "")),
+            str(item.get("duplicate_group_id") or ""),
             style=style,
         )
     return table
@@ -243,6 +250,85 @@ def manifest_validate(
     _write_json(output_json, report.to_dict())
     if not report.valid:
         raise typer.Exit(code=1)
+
+
+@geocode_app.command("set", help="Save a local GPS to location alias for filenames.")
+def geocode_set(
+    latitude: Annotated[float, typer.Option("--lat", help="Latitude.")],
+    longitude: Annotated[float, typer.Option("--lon", help="Longitude.")],
+    location: Annotated[str, typer.Option("--location", help="Location text to use in filenames.")],
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config)
+    GeocodeCache(cli_config.geocode_cache_file, cli_config.geocode_cache_ttl_days).set(latitude, longitude, location)
+    console.print(f"[green]Saved geocode cache entry:[/green] {latitude:.5f},{longitude:.5f} -> {location}")
+
+
+@geocode_app.command("list", help="List cached GPS location names.")
+def geocode_list(
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config)
+    cache = GeocodeCache(cli_config.geocode_cache_file, cli_config.geocode_cache_ttl_days)
+    table = Table(title="Geocode Cache")
+    table.add_column("Coordinates")
+    table.add_column("Location")
+    table.add_column("Timestamp")
+    for key, entry in cache.data.items():
+        table.add_row(key, str(entry.get("location", "")), str(entry.get("timestamp", "")))
+    console.print(table)
+
+
+@app.command(help="Find likely duplicate photos and optionally export duplicate groups as JSON.")
+def duplicates(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to scan.")],
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write duplicate groups to JSON.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config)
+    groups = find_duplicate_groups(scan_images(input, recursive=recursive), cli_config.duplicate_hash_distance)
+    table = Table(title="Likely Duplicate Photos")
+    table.add_column("Group")
+    table.add_column("Distance", justify="right")
+    table.add_column("Files", overflow="fold")
+    for group in groups:
+        table.add_row(group.group_id, str(group.distance), "\n".join(Path(path).name for path in group.files))
+    console.print(table)
+    if output_json:
+        write_duplicate_report(groups, output_json)
+        console.print(f"[cyan]Duplicate report:[/cyan] {output_json}")
+
+
+@app.command(help="Process stable files from a watched folder into an approval queue or apply after explicit approval.")
+def watch(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Folder to check for incoming photos.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Apply safe renames for stable files. Omit this to build an approval queue only.")] = False,
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Mark files as AI-required. Watch mode does not call AI during queue creation.")] = False,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write watch result to JSON.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    if apply and not typer.confirm("Apply watch queue renames now?", default=False):
+        console.print("[yellow]Watch apply cancelled. No files were renamed.[/yellow]")
+        return
+    manifest = process_watch_once(input, cli_config, apply=apply, recursive=recursive, force_ai=force_ai)
+    console.print(_preview_table(manifest["files"], title="Watch Folder Queue" if not apply else "Watch Folder Apply"))
+    console.print(
+        _summary_table(
+            {
+                "mode": "apply" if apply else "approval_queue",
+                "files": len(manifest["files"]),
+                "approval_required": manifest.get("approval_required", not apply),
+                "manifest": manifest.get("manifest_path", ""),
+            }
+        )
+    )
+    _write_json(output_json, manifest)
 
 
 @app.command(help="Scan supported image files, score metadata, and show whether AI would be required.")
