@@ -10,7 +10,7 @@ from photosage.providers.exceptions import (
     UnsupportedModelError,
     UnsupportedProviderError,
 )
-from photosage.providers.healthcheck import ProviderHealth, check_ollama, check_providers, list_ollama_models, ollama_info
+from photosage.providers.healthcheck import ProviderHealth, check_lmstudio, check_ollama, check_providers, list_lmstudio_models, list_ollama_models, ollama_info
 from photosage.providers.provider_factory import ProviderFactory
 from photosage.providers.provider_manager import ProviderManager
 
@@ -32,9 +32,11 @@ __all__ = [
     "UnsupportedModelError",
     "UnsupportedProviderError",
     "VisionProvider",
+    "check_lmstudio",
     "check_ollama",
     "check_providers",
     "get_provider",
+    "list_lmstudio_models",
     "list_ollama_models",
     "ollama_info",
 ]

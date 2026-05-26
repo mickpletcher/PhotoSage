@@ -209,6 +209,7 @@ Provider architecture exists for:
 - OpenAI
 - Gemini
 - Ollama
+- LM Studio
 
 Preview and rename can call the selected provider when metadata is below the configured threshold or `--force-ai` is used.
 
@@ -256,7 +257,7 @@ Apply only after preview looks right:
 photosage rename --input ./photos --apply
 ```
 
-Ollama is the local provider path. It keeps image data on your machine when used by provider workflows.
+Ollama and LM Studio are the local provider paths. They keep image data on your machine when used by provider workflows.
 
 Check provider status:
 
@@ -292,7 +293,49 @@ ollama:
   timeout_seconds: 180
 ```
 
-LM Studio support is planned in [specs/001-lm-studio-provider/spec.md](specs/001-lm-studio-provider/spec.md).
+### LM Studio Local Setup
+
+LM Studio uses a local OpenAI-compatible server. No API key is needed.
+
+In LM Studio:
+
+1. Download a vision-capable model.
+2. Load the model.
+3. Start the local server.
+4. Confirm the server exposes `/v1/models`.
+
+Default endpoint:
+
+```text
+http://localhost:1234/v1
+```
+
+Example config:
+
+```yaml
+vision_provider: lmstudio
+local_only: true
+
+fallback_order:
+  - lmstudio
+  - ollama
+
+lmstudio:
+  endpoint: http://localhost:1234/v1
+  model: qwen2.5-vl
+  timeout_seconds: 180
+  temperature: 0.1
+  max_dimension: 1600
+  jpeg_quality: 90
+```
+
+Use LM Studio only:
+
+```powershell
+photosage preview --input ./photos --provider lmstudio --local-only
+```
+
+The selected LM Studio model must be visible from `/v1/models`.
 
 ## Lightroom Workflow
 

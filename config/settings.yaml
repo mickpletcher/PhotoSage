@@ -8,6 +8,7 @@ fallback_order:
   - openai
   - gemini
   - ollama
+  - lmstudio
 
 filename_format: "{date}_{location}_{subject}_{context}_{counter}"
 manifest_directory: manifests
@@ -43,6 +44,15 @@ gemini:
 ollama:
   endpoint: http://localhost:11434
   model: llava:13b
+  timeout_seconds: 180
+  healthcheck_timeout_seconds: 5
+  temperature: 0.1
+  max_dimension: 1600
+  jpeg_quality: 90
+
+lmstudio:
+  endpoint: http://localhost:1234/v1
+  model: local-vision-model
   timeout_seconds: 180
   healthcheck_timeout_seconds: 5
   temperature: 0.1

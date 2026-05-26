@@ -36,6 +36,14 @@ def get_ollama_version(endpoint: str = "http://localhost:11434", timeout_seconds
     return str(response.json().get("version", "unknown"))
 
 
+def list_lmstudio_models(endpoint: str = "http://localhost:1234/v1", timeout_seconds: float = 5) -> list[str]:
+    """Return loaded or available LM Studio model ids from the OpenAI-compatible API."""
+    response = requests.get(f"{endpoint.rstrip('/')}/models", timeout=timeout_seconds)
+    response.raise_for_status()
+    payload = response.json()
+    return sorted(model.get("id", "") for model in payload.get("data", []) if model.get("id"))
+
+
 def ollama_info(endpoint: str = "http://localhost:11434", timeout_seconds: float = 5) -> dict[str, Any]:
     """Return best-effort Ollama diagnostics."""
     info: dict[str, Any] = {
@@ -77,9 +85,26 @@ def check_ollama(config: AppConfig) -> ProviderHealth:
     return ProviderHealth("ollama", "OK", "Ollama is available", endpoint, model)
 
 
+def check_lmstudio(config: AppConfig) -> ProviderHealth:
+    """Validate LM Studio endpoint and selected model."""
+    settings = config.provider_settings.get("lmstudio", {})
+    endpoint = str(settings.get("endpoint") or "http://localhost:1234/v1").rstrip("/")
+    model = str(settings.get("model") or "local-vision-model")
+    timeout_seconds = float(settings.get("healthcheck_timeout_seconds") or 5)
+
+    try:
+        models = list_lmstudio_models(endpoint, timeout_seconds)
+    except requests.RequestException:
+        return ProviderHealth("lmstudio", "ERROR", f"LM Studio server not reachable at {endpoint}", endpoint, model)
+
+    if model not in models:
+        return ProviderHealth("lmstudio", "ERROR", f"Model '{model}' is not loaded in LM Studio", endpoint, model)
+    return ProviderHealth("lmstudio", "OK", "LM Studio is available", endpoint, model)
+
+
 def check_providers(config: AppConfig) -> list[ProviderHealth]:
     """Return health status for all configured providers."""
-    checks = [check_ollama(config)]
+    checks = [check_ollama(config), check_lmstudio(config)]
     for provider in sorted(CLOUD_PROVIDERS):
         status = "DISABLED" if config.local_only else "OK"
         message = "Blocked by local_only mode" if config.local_only else "Configured"

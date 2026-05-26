@@ -39,3 +39,4 @@ When an upgrade is completed:
 - Added folder organization policies.
 - Added local reverse geocoding cache.
 - Added astrophotography expansion with FITS metadata, capture-night grouping, astro profiles, and filename tokens.
+- Added LM Studio local vision provider support.

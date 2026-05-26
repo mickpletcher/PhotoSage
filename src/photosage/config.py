@@ -14,7 +14,7 @@ class AppConfig:
     metadata_threshold: int = 70
     dry_run_default: bool = True
     local_only: bool = False
-    fallback_order: list[str] = field(default_factory=lambda: ["anthropic", "openai", "gemini", "ollama"])
+    fallback_order: list[str] = field(default_factory=lambda: ["anthropic", "openai", "gemini", "ollama", "lmstudio"])
     filename_format: str = "{date}_{location}_{subject}_{context}_{counter}"
     manifest_directory: Path = Path("manifests")
     log_file: Path = Path("logs/photosage.log")
@@ -53,7 +53,7 @@ def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
         metadata_threshold=int(data.get("metadata_threshold", 70)),
         dry_run_default=bool(data.get("dry_run_default", True)),
         local_only=bool(data.get("local_only", False)),
-        fallback_order=list(data.get("fallback_order", ["anthropic", "openai", "gemini", "ollama"])),
+        fallback_order=list(data.get("fallback_order", ["anthropic", "openai", "gemini", "ollama", "lmstudio"])),
         filename_format=str(data.get("filename_format", "{date}_{location}_{subject}_{context}_{counter}")),
         manifest_directory=Path(data.get("manifest_directory", "manifests")),
         log_file=Path(data.get("log_file", "logs/photosage.log")),
@@ -62,6 +62,7 @@ def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
             "openai": dict(data.get("openai", {}) or {}),
             "gemini": dict(data.get("gemini", {}) or {}),
             "ollama": dict(data.get("ollama", {}) or {}),
+            "lmstudio": dict(data.get("lmstudio", {}) or {}),
         },
         provider_retry_count=int(data.get("provider_retry_count", 3)),
         provider_retry_initial_delay=float(data.get("provider_retry_initial_delay", 0.5)),

@@ -22,6 +22,7 @@ The project is no longer just a scaffold. The main architecture is in place.
 - Undo and rollback reports
 - Provider abstraction
 - Ollama local provider support
+- LM Studio local provider support
 - Live provider analysis during preview and apply planning
 - Lightroom export folder support
 - XMP sidecar parsing and rename sync
@@ -69,6 +70,7 @@ The project is no longer just a scaffold. The main architecture is in place.
 - `src/photosage/metadata/metadata_score.py`: Metadata scoring.
 - `src/photosage/providers/provider_manager.py`: Provider fallback and local-only policy.
 - `src/photosage/providers/ollama_provider.py`: Ollama provider.
+- `src/photosage/providers/lmstudio_provider.py`: LM Studio provider.
 - `src/photosage/rename/renamer.py`: Rename preview and apply.
 - `src/photosage/manifest/undo.py`: Undo and rollback.
 - `src/photosage/lightroom/exporter.py`: Lightroom export workflow.
@@ -88,6 +90,7 @@ photosage watch --input ./IncomingPhotos
 photosage geocode list
 photosage astro --input ./AstroExports --profile deep-sky
 photosage providers
+photosage preview --input ./photos --provider lmstudio --local-only
 photosage ollama models
 photosage lightroom-process --input ./LightroomExports --preview
 ```
@@ -124,11 +127,10 @@ The skipped test is expected when optional GUI pieces are unavailable.
 
 Good next work:
 
-1. Implement LM Studio provider from `specs/001-lm-studio-provider/`.
-2. Add stronger end-to-end CLI smoke tests around provider-backed preview.
-3. Add provider benchmarking.
-4. Add manual review queue editing.
-5. Add native catalog integrations.
+1. Add stronger end-to-end CLI smoke tests around provider-backed preview.
+2. Add provider benchmarking.
+3. Add manual review queue editing.
+4. Add native catalog integrations.
 
 ## Future Agent Checklist
 

@@ -7,7 +7,7 @@ from typing import Any
 
 from photosage.providers.response_normalizer import empty_response, normalize_response
 
-LOCAL_PROVIDERS = {"ollama"}
+LOCAL_PROVIDERS = {"ollama", "lmstudio"}
 CLOUD_PROVIDERS = {"anthropic", "openai", "gemini"}
 
 

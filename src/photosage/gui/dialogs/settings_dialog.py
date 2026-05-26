@@ -19,7 +19,7 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(520)
 
         self.provider = QComboBox()
-        self.provider.addItems(["anthropic", "openai", "gemini", "ollama"])
+        self.provider.addItems(["anthropic", "openai", "gemini", "ollama", "lmstudio"])
         self.provider.setCurrentText(config.vision_provider)
         self.threshold = QSpinBox()
         self.threshold.setRange(0, 100)
@@ -74,4 +74,3 @@ class SettingsDialog(QDialog):
         self.config.max_concurrent_ai_requests = self.max_ai.value()
         save_config(self.config, self.config_path)
         self.accept()
-

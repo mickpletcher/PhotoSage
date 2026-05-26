@@ -13,7 +13,7 @@ class ProviderSelector(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["anthropic", "openai", "gemini", "ollama"])
+        self.provider_combo.addItems(["anthropic", "openai", "gemini", "ollama", "lmstudio"])
         self.local_only = QCheckBox("Local only")
         self.force_ai = QCheckBox("Force AI")
         self.threshold = QSlider(Qt.Horizontal)
@@ -43,4 +43,3 @@ class ProviderSelector(QWidget):
         self.provider_combo.setCurrentText(config.vision_provider)
         self.local_only.setChecked(config.local_only)
         self.threshold.setValue(config.metadata_threshold)
-

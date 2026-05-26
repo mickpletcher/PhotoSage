@@ -28,7 +28,7 @@ from photosage.rename.renamer import preview_renames, rename_files
 from photosage.scanner import count_unsupported_files, scan_images
 from photosage.watch.folder_watcher import process_watch_once
 
-SUPPORTED_PROVIDERS = {"anthropic", "openai", "gemini", "ollama"}
+SUPPORTED_PROVIDERS = {"anthropic", "openai", "gemini", "ollama", "lmstudio"}
 
 app = typer.Typer(
     help="Metadata-first AI photo organization and safe renaming CLI.",
@@ -57,7 +57,7 @@ def _config(
         config.vision_provider = provider_name
     if local_only:
         config.local_only = True
-        config.vision_provider = "ollama" if config.vision_provider not in {"ollama"} else config.vision_provider
+        config.vision_provider = "ollama" if config.vision_provider not in {"ollama", "lmstudio"} else config.vision_provider
     configure_logging(config.log_file, verbose=verbose)
     return config
 
