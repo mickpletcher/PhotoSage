@@ -51,13 +51,13 @@ def date_from_metadata(metadata: Any) -> str:
     if hasattr(value, "date"):
         return value.date().isoformat()
     if value:
+        text = str(value)
+        if len(text) >= 10 and text[4] == ":" and text[7] == ":":
+            text = text.replace(":", "-", 2)
         try:
-            return parser.parse(str(value)).date().isoformat()
+            return parser.parse(text).date().isoformat()
         except (ValueError, OverflowError, TypeError):
-            try:
-                return parser.parse(str(value).replace(":", "-", 2)).date().isoformat()
-            except (ValueError, OverflowError, TypeError):
-                pass
+            pass
     return "unknown-date"
 
 

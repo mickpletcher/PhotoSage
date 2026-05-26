@@ -27,13 +27,12 @@ def _parse_date(value: Any) -> str | None:
         return value.date().isoformat()
 
     text = str(value).strip()
+    if len(text) >= 10 and text[4] == ":" and text[7] == ":":
+        text = text.replace(":", "-", 2)
     try:
         return parser.parse(text).date().isoformat()
     except (ValueError, OverflowError, TypeError):
-        try:
-            return parser.parse(text.replace(":", "-", 2)).date().isoformat()
-        except (ValueError, OverflowError, TypeError):
-            return None
+        return None
 
 
 def date_for_filename(metadata: dict[str, Any]) -> str:
