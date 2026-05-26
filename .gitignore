@@ -232,6 +232,7 @@ photo_exports/
 thumbnail_cache/
 
 # OS and editor noise
+*.code-workspace
 .DS_Store
 Thumbs.db
 Desktop.ini

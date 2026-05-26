@@ -62,3 +62,4 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 - Ensured `future-upgrades.md` is ignored in `.gitignore` and untracked from git index so it will not be pushed.
 - Reworked `future-upgrades.md` into a three tier roadmap with clearer, action oriented upgrade suggestions.
+- Added `.code-workspace` ignore coverage so local VS Code workspace files do not get pushed.
