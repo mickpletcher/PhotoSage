@@ -31,6 +31,7 @@ The project is no longer just a scaffold. The main architecture is in place.
 - Folder organization policies
 - Local reverse geocoding cache
 - GUI thumbnail cache and recent manifest helpers
+- Astrophotography mode with FITS metadata and capture-night grouping
 - Pytest coverage across core modules
 
 ## Core Flow
@@ -85,6 +86,7 @@ photosage manifest validate --manifest ./manifests/rename_manifest.json
 photosage duplicates --input ./photos --output-json ./duplicates.json
 photosage watch --input ./IncomingPhotos
 photosage geocode list
+photosage astro --input ./AstroExports --profile deep-sky
 photosage providers
 photosage ollama models
 photosage lightroom-process --input ./LightroomExports --preview

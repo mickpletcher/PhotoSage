@@ -35,6 +35,8 @@ class AppConfig:
     thumbnail_cache_directory: Path = Path(".photosage-cache/thumbnails")
     profile_directory: Path = Path(".photosage-cache/profiles")
     recent_manifest_file: Path = Path(".photosage-cache/recent_manifests.json")
+    astro_profile: str = "deep-sky"
+    astro_group_by_capture_night: bool = True
 
 
 def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
@@ -77,6 +79,8 @@ def load_config(config_path: Path = Path("config/settings.yaml")) -> AppConfig:
         thumbnail_cache_directory=Path(data.get("thumbnail_cache_directory", ".photosage-cache/thumbnails")),
         profile_directory=Path(data.get("profile_directory", ".photosage-cache/profiles")),
         recent_manifest_file=Path(data.get("recent_manifest_file", ".photosage-cache/recent_manifests.json")),
+        astro_profile=str(data.get("astro_profile", "deep-sky")),
+        astro_group_by_capture_night=bool(data.get("astro_group_by_capture_night", True)),
     )
 
 
@@ -107,6 +111,8 @@ def config_to_dict(config: AppConfig) -> dict[str, Any]:
         "thumbnail_cache_directory": str(config.thumbnail_cache_directory),
         "profile_directory": str(config.profile_directory),
         "recent_manifest_file": str(config.recent_manifest_file),
+        "astro_profile": config.astro_profile,
+        "astro_group_by_capture_night": config.astro_group_by_capture_night,
     }
     data.update(config.provider_settings)
     return data

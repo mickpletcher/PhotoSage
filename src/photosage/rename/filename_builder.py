@@ -60,6 +60,7 @@ def build_filename_components(metadata: dict[str, Any], ai_response: dict[str, A
     subject = (
         ai_response.get("primary_subject")
         or ai_response.get("secondary_subject")
+        or metadata.get("astro_target")
         or metadata.get("content_label")
         or metadata.get("document_type")
         or subject_from_metadata(metadata)
@@ -68,6 +69,8 @@ def build_filename_components(metadata: dict[str, Any], ai_response: dict[str, A
     context = (
         ai_response.get("activity")
         or ai_response.get("environment")
+        or metadata.get("astro_telescope")
+        or metadata.get("astro_filter")
         or metadata.get("source_app")
         or metadata.get("document_type")
         or metadata.get("camera_model")
@@ -83,6 +86,13 @@ def build_filename_components(metadata: dict[str, Any], ai_response: dict[str, A
         "document_type": sanitize_part(metadata.get("document_type") or "document", "document"),
         "media_type": sanitize_part(metadata.get("media_type") or "photo", "photo"),
         "ocr_summary": sanitize_part(metadata.get("ocr_summary") or "no-ocr-summary", "no-ocr-summary"),
+        "astro_profile": sanitize_part(metadata.get("astro_profile") or "astro", "astro"),
+        "astro_target": sanitize_part(metadata.get("astro_target") or "sky", "sky"),
+        "telescope": sanitize_part(metadata.get("astro_telescope") or "unknown-telescope", "unknown-telescope"),
+        "filter": sanitize_part(metadata.get("astro_filter") or "no-filter", "no-filter"),
+        "exposure": sanitize_part(metadata.get("astro_exposure") or "unknown-exposure", "unknown-exposure"),
+        "capture_night": sanitize_part(metadata.get("astro_capture_night") or date_for_filename(metadata), "unknown-night"),
+        "session": sanitize_part(metadata.get("astro_session_id") or "astro-session", "astro-session"),
     }
 
 

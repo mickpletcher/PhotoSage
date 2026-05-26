@@ -9,6 +9,8 @@ from typing import Any
 from dateutil import parser
 from PIL import ExifTags, Image
 
+from photosage.astro.metadata import enrich_astro_metadata
+
 try:
     from pillow_heif import register_heif_opener
 except ImportError:
@@ -68,6 +70,16 @@ class PhotoMetadata:
     document_type: str | None = None
     ocr_summary: str | None = None
     mixed_media_tags: list[str] = field(default_factory=list)
+    astro_mode: bool = False
+    astro_profile: str | None = None
+    astro_target: str | None = None
+    astro_telescope: str | None = None
+    astro_filter: str | None = None
+    astro_exposure: str | None = None
+    astro_capture_night: str | None = None
+    astro_session_id: str | None = None
+    fits_detected: bool = False
+    fits_metadata: dict[str, Any] = field(default_factory=dict)
     raw_metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -243,6 +255,19 @@ def extract_photo_metadata(image_path: Path) -> PhotoMetadata | None:
     metadata.mixed_media_tags = mixed_media["mixed_media_tags"]
     if metadata.mixed_media_tags:
         metadata.tags = sorted(set(metadata.tags + metadata.mixed_media_tags))
+    astro_metadata = enrich_astro_metadata(metadata.to_dict(), image_path)
+    metadata.astro_mode = bool(astro_metadata.get("astro_mode"))
+    metadata.astro_profile = astro_metadata.get("astro_profile")
+    metadata.astro_target = astro_metadata.get("astro_target")
+    metadata.astro_telescope = astro_metadata.get("astro_telescope")
+    metadata.astro_filter = astro_metadata.get("astro_filter")
+    metadata.astro_exposure = astro_metadata.get("astro_exposure")
+    metadata.astro_capture_night = astro_metadata.get("astro_capture_night")
+    metadata.astro_session_id = astro_metadata.get("astro_session_id")
+    metadata.fits_detected = bool(astro_metadata.get("fits_detected"))
+    metadata.fits_metadata = dict(astro_metadata.get("fits_metadata") or {})
+    metadata.content_label = astro_metadata.get("content_label") or metadata.content_label
+    metadata.tags = list(astro_metadata.get("tags") or metadata.tags)
     return metadata
 
 

@@ -38,3 +38,4 @@ When an upgrade is completed:
 - Added GUI performance helpers for thumbnail caching and recent manifests.
 - Added folder organization policies.
 - Added local reverse geocoding cache.
+- Added astrophotography expansion with FITS metadata, capture-night grouping, astro profiles, and filename tokens.

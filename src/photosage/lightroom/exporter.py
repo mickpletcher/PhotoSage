@@ -61,6 +61,8 @@ def _effective_config(config: AppConfig, preset: LightroomPreset | None) -> AppC
         thumbnail_cache_directory=config.thumbnail_cache_directory,
         profile_directory=config.profile_directory,
         recent_manifest_file=config.recent_manifest_file,
+        astro_profile=config.astro_profile,
+        astro_group_by_capture_night=config.astro_group_by_capture_night,
     )
 
 
@@ -192,6 +194,12 @@ def build_lightroom_manifest(
                 "duplicate_group_id": duplicate_info.get("duplicate_group_id"),
                 "duplicate_hash": duplicate_info.get("duplicate_hash"),
                 "duplicate_distance": duplicate_info.get("duplicate_distance"),
+                "astro_mode": bool(merged_metadata.get("astro_mode")),
+                "astro_profile": merged_metadata.get("astro_profile"),
+                "astro_target": merged_metadata.get("astro_target"),
+                "astro_capture_night": merged_metadata.get("astro_capture_night"),
+                "astro_session_id": merged_metadata.get("astro_session_id"),
+                "fits_detected": bool(merged_metadata.get("fits_detected")),
             }
         )
         logger.info(
@@ -211,10 +219,29 @@ def build_lightroom_manifest(
         files=files,
     )
     manifest["lightroom_mode"] = True
+    astro_files = [item for item in files if item.get("astro_mode")]
+    if astro_files:
+        manifest["astro_mode"] = True
+        manifest["astro_groups"] = _astro_group_summary(astro_files)
     manifest["preset"] = preset.name if preset else None
     manifest["organization_applied"] = organize
     manifest["catalog_warnings"] = warnings
     return manifest, warnings
+
+
+def _astro_group_summary(files: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for item in files:
+        capture_night = str(item.get("astro_capture_night") or "unknown-night")
+        group = groups.setdefault(capture_night, {"count": 0, "targets": [], "profiles": []})
+        group["count"] += 1
+        target = item.get("astro_target")
+        profile = item.get("astro_profile")
+        if target and target not in group["targets"]:
+            group["targets"].append(target)
+        if profile and profile not in group["profiles"]:
+            group["profiles"].append(profile)
+    return groups
 
 
 def apply_lightroom_manifest(

@@ -13,6 +13,7 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 - Added GUI performance helpers for thumbnail caching, faster table loading, saved profiles, and recent manifest tracking.
 - Added folder organization policies for date-first, location-first, project-first, and custom keyword-to-folder mapping.
 - Added local reverse geocoding cache with TTL settings and GPS alias commands.
+- Added astrophotography support with capture-night grouping, telescope/filter/target/exposure filename tokens, lunar/solar/planetary/deep-sky profiles, and lightweight FITS metadata parsing.
 - Added live AI analysis during preview and apply planning for files below the metadata threshold or when `--force-ai` is used.
 - Added safe provider failure handling with `ai-unavailable` manifest status so apply mode skips files that required AI but could not be analyzed.
 - Added lightweight `.env` loading for local provider API keys without overriding shell environment variables.

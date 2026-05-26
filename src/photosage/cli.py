@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -329,6 +329,59 @@ def watch(
         )
     )
     _write_json(output_json, manifest)
+
+
+@app.command(help="Preview or apply astrophotography filenames with capture-night grouping and FITS metadata.")
+def astro(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Astrophotography image directory.")],
+    apply: Annotated[bool, typer.Option("--apply", help="Actually rename files. Omit this for preview only.")] = False,
+    profile: Annotated[str, typer.Option("--profile", help="Astro profile: lunar, solar, planetary, or deep-sky.")] = "deep-sky",
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
+    force_ai: Annotated[bool, typer.Option("--force-ai", help="Use configured AI provider if metadata is weak.")] = False,
+    provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
+    local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
+    verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write astro manifest to JSON.")] = None,
+    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+) -> None:
+    if profile not in {"lunar", "solar", "planetary", "deep-sky"}:
+        raise typer.BadParameter("Profile must be lunar, solar, planetary, or deep-sky.")
+    cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    astro_format = "{capture_night}_{astro_target}_{telescope}_{filter}_{exposure}_{counter}"
+    if profile in {"lunar", "solar", "planetary"}:
+        astro_format = "{capture_night}_{astro_target}_{telescope}_{filter}_{counter}"
+    astro_config = replace(cli_config, filename_format=astro_format, astro_profile=profile)
+
+    if apply:
+        result = rename_files(input, astro_config, apply=True, force_ai=force_ai, recursive=recursive, analyze_ai=force_ai)
+    else:
+        result = preview_renames(input, astro_config, force_ai=force_ai, recursive=recursive, analyze_ai=force_ai)
+
+    console.print(_preview_table(result.manifest["files"], title="Astrophotography Rename Preview" if not apply else "Astrophotography Rename Apply"))
+    groups = result.manifest.get("astro_groups", {})
+    group_table = Table(title="Capture Night Groups")
+    group_table.add_column("Capture Night")
+    group_table.add_column("Count", justify="right")
+    group_table.add_column("Targets", overflow="fold")
+    group_table.add_column("Profiles")
+    for capture_night, details in groups.items():
+        group_table.add_row(capture_night, str(details.get("count", 0)), ", ".join(details.get("targets", [])), ", ".join(details.get("profiles", [])))
+    console.print(group_table)
+    console.print(
+        _summary_table(
+            {
+                "mode": "apply" if apply else "preview",
+                "profile": profile,
+                "files": len(result.manifest["files"]),
+                "astro_files": sum(1 for item in result.manifest["files"] if item.get("astro_mode")),
+                "fits_detected": sum(1 for item in result.manifest["files"] if item.get("fits_detected")),
+                "manifest": str(result.manifest_path),
+            }
+        )
+    )
+    if not apply:
+        console.print("[yellow]Preview only. Re-run with --apply to rename astrophotography files.[/yellow]")
+    _write_json(output_json, result.manifest)
 
 
 @app.command(help="Scan supported image files, score metadata, and show whether AI would be required.")

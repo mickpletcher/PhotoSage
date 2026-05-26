@@ -28,6 +28,8 @@ folder_keyword_map: {}
 thumbnail_cache_directory: .photosage-cache/thumbnails
 profile_directory: .photosage-cache/profiles
 recent_manifest_file: .photosage-cache/recent_manifests.json
+astro_profile: deep-sky
+astro_group_by_capture_night: true
 
 anthropic:
   model: claude-sonnet-4

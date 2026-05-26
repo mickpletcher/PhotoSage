@@ -124,16 +124,42 @@ def build_rename_manifest(
                 "duplicate_group_id": duplicate_info.get("duplicate_group_id"),
                 "duplicate_hash": duplicate_info.get("duplicate_hash"),
                 "duplicate_distance": duplicate_info.get("duplicate_distance"),
+                "astro_mode": bool(metadata.get("astro_mode")),
+                "astro_profile": metadata.get("astro_profile"),
+                "astro_target": metadata.get("astro_target"),
+                "astro_capture_night": metadata.get("astro_capture_night"),
+                "astro_session_id": metadata.get("astro_session_id"),
+                "fits_detected": bool(metadata.get("fits_detected")),
             }
         )
 
-    return create_manifest(
+    manifest = create_manifest(
         input_directory=input_directory,
         dry_run=dry_run,
         provider_used=provider_used,
         metadata_threshold=config.metadata_threshold,
         files=files,
     )
+    astro_files = [item for item in files if item.get("astro_mode")]
+    if astro_files:
+        manifest["astro_mode"] = True
+        manifest["astro_groups"] = _astro_group_summary(astro_files)
+    return manifest
+
+
+def _astro_group_summary(files: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    groups: dict[str, dict[str, Any]] = {}
+    for item in files:
+        capture_night = str(item.get("astro_capture_night") or "unknown-night")
+        group = groups.setdefault(capture_night, {"count": 0, "targets": [], "profiles": []})
+        group["count"] += 1
+        target = item.get("astro_target")
+        profile = item.get("astro_profile")
+        if target and target not in group["targets"]:
+            group["targets"].append(target)
+        if profile and profile not in group["profiles"]:
+            group["profiles"].append(profile)
+    return groups
 
 
 def preview_renames(

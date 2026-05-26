@@ -33,6 +33,7 @@ becomes something useful like:
 - Finds likely duplicate photos without deleting anything.
 - Supports folder organization policies.
 - Uses a local geocode cache for consistent GPS names.
+- Supports astrophotography naming with FITS metadata and capture-night grouping.
 
 ## Safety Rules
 
@@ -56,6 +57,8 @@ PhotoSage scans:
 - `heic`
 - `webp`
 - `tiff`
+- `fits`
+- `fit`
 
 Other files are skipped.
 
@@ -154,6 +157,12 @@ Save a GPS location alias:
 
 ```powershell
 photosage geocode set --lat 36.50000 --lon -87.84000 --location dover-tn
+```
+
+Preview astrophotography naming:
+
+```powershell
+photosage astro --input ./AstroExports --profile deep-sky
 ```
 
 Undo for real:
@@ -431,6 +440,54 @@ photosage geocode list
 ```
 
 If PhotoSage sees matching GPS coordinates, it uses the cached location in filenames.
+
+## Astrophotography
+
+Astro mode is for telescope sessions, stacked images, lunar, solar, planetary, and deep sky work.
+
+It can read:
+
+- filenames
+- normal photo metadata
+- direct `.fits` and `.fit` files
+- matching FITS sidecars such as `moon.jpg` and `moon.fits`
+
+Preview:
+
+```powershell
+photosage astro --input ./AstroExports --profile lunar
+```
+
+Apply:
+
+```powershell
+photosage astro --input ./AstroExports --profile lunar --apply
+```
+
+Profiles:
+
+- `lunar`
+- `solar`
+- `planetary`
+- `deep-sky`
+
+Astro filename tokens:
+
+- `{capture_night}`
+- `{astro_target}`
+- `{telescope}`
+- `{filter}`
+- `{exposure}`
+- `{session}`
+- `{astro_profile}`
+
+Example:
+
+```text
+2026-05-25_orion-nebula_seestar-s50_h-alpha_10_001.jpg
+```
+
+Capture night groups images after midnight with the previous evening, which matches normal astronomy session handling.
 
 ## Screenshot And Document Mode
 

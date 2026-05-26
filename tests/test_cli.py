@@ -38,6 +38,21 @@ def _write_image(path: Path) -> None:
     Image.new("RGB", (8, 8), color="red").save(path)
 
 
+def _write_fits(path: Path) -> None:
+    cards = [
+        "SIMPLE  =                    T",
+        "BITPIX  =                   16",
+        "NAXIS   =                    0",
+        "OBJECT  = 'Moon'",
+        "DATE-OBS= '2026-05-26T03:15:00'",
+        "TELESCOP= 'Seestar S50'",
+        "FILTER  = 'UV-IR'",
+        "END",
+    ]
+    content = "".join(card.ljust(80) for card in cards).ljust(2880)
+    path.write_bytes(content.encode("ascii"))
+
+
 def test_cli_scan_outputs_json_and_provider_override(tmp_path):
     config = tmp_path / "config.yaml"
     output = tmp_path / "scan.json"
@@ -82,6 +97,26 @@ def test_cli_preview_generates_json_without_renaming(tmp_path):
     data = json.loads(output.read_text(encoding="utf-8"))
     assert data["dry_run"] is True
     assert data["files"][0]["status"] == "planned"
+
+
+def test_cli_astro_preview_outputs_capture_groups(tmp_path):
+    config = tmp_path / "config.yaml"
+    output = tmp_path / "astro.json"
+    photo = tmp_path / "astro" / "moon.jpg"
+    _write_config(config)
+    _write_image(photo)
+    _write_fits(photo.with_suffix(".fits"))
+
+    result = runner.invoke(
+        app,
+        ["astro", "--input", str(photo.parent), "--profile", "lunar", "--output-json", str(output), "--config", str(config)],
+    )
+
+    assert result.exit_code == 0
+    data = json.loads(output.read_text(encoding="utf-8"))
+    assert data["astro_mode"] is True
+    assert "2026-05-25" in data["astro_groups"]
+    assert data["files"][0]["new_filename"].startswith("2026-05-25_moon_seestar-s50")
 
 
 def test_cli_rename_requires_apply(tmp_path):

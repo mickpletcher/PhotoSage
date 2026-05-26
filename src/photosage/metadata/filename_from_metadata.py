@@ -16,7 +16,7 @@ def _get(metadata: Any, key: str) -> Any:
 
 def subject_from_metadata(metadata: Any) -> str:
     """Pick the best subject candidate from metadata."""
-    for key in ("content_label", "document_type", "media_type"):
+    for key in ("astro_target", "content_label", "document_type", "media_type"):
         value = _get(metadata, key)
         if value and value != "photo":
             return str(value)
@@ -64,7 +64,15 @@ def date_from_metadata(metadata: Any) -> str:
 def filename_from_metadata(metadata: Any, counter: int = 1, max_length: int = 180) -> str:
     """Build a safe filename using metadata only."""
     extension = _get(metadata, "extension") or _get(metadata, "file_extension") or Path(str(_get(metadata, "original_filename") or "photo.jpg")).suffix.lstrip(".")
-    context = _get(metadata, "source_app") or _get(metadata, "document_type") or _get(metadata, "camera_model") or _get(metadata, "camera_make") or "photo"
+    context = (
+        _get(metadata, "astro_telescope")
+        or _get(metadata, "astro_filter")
+        or _get(metadata, "source_app")
+        or _get(metadata, "document_type")
+        or _get(metadata, "camera_model")
+        or _get(metadata, "camera_make")
+        or "photo"
+    )
     parts = [
         date_from_metadata(metadata),
         sanitize_part(location_from_metadata(metadata) or "unknown-location"),
