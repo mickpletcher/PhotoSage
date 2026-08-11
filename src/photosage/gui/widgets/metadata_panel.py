@@ -14,4 +14,3 @@ class MetadataPanel(QTextEdit):
 
     def set_metadata(self, metadata: dict) -> None:
         self.setPlainText(json.dumps(metadata or {}, indent=2, default=str))
-

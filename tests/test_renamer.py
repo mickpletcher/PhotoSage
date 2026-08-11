@@ -5,7 +5,7 @@ from PIL import Image
 from photosage.config import AppConfig
 from photosage.providers.exceptions import AuthenticationError
 from photosage.providers.provider_manager import ProviderManager
-from photosage.rename.renamer import apply_renames, preview_renames
+from photosage.rename.renamer import apply_renames, apply_reviewed_manifest, preview_renames
 
 
 def _write_image(path):
@@ -15,7 +15,7 @@ def _write_image(path):
 def test_preview_renames_writes_manifest_without_renaming(tmp_path):
     photo = tmp_path / "Shipping Container.JPG"
     _write_image(photo)
-    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=70)
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=0)
 
     result = preview_renames(tmp_path, config)
 
@@ -57,6 +57,7 @@ def test_apply_renames_prevents_collision_with_existing_file(tmp_path):
     config = AppConfig(
         manifest_directory=tmp_path / "manifests",
         filename_format="{date}_{location}_{subject}_{context}_{counter}",
+        metadata_threshold=0,
     )
     ai_responses = {
         source.name: {
@@ -116,4 +117,17 @@ def test_apply_renames_skips_when_required_ai_is_unavailable(monkeypatch, tmp_pa
     assert item["status"] == "ai-unavailable"
     assert item["ai_used"] is False
     assert "AuthenticationError" in item["ai_error"]
+    assert photo.exists()
+
+
+def test_reviewed_manifest_blocks_changed_source(tmp_path):
+    photo = tmp_path / "IMG_0001.jpg"
+    _write_image(photo)
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=0)
+    preview = preview_renames(tmp_path, config)
+    photo.write_bytes(photo.read_bytes() + b"changed")
+
+    result = apply_reviewed_manifest(preview.manifest_path)
+
+    assert result.manifest["files"][0]["status"] == "source-changed"
     assert photo.exists()

@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from photosage.providers.base import VisionProvider, build_provider_prompt
+from photosage.providers.base import VisionProvider
 from photosage.providers.exceptions import AuthenticationError, ProviderUnavailableError
 
 
@@ -26,27 +26,29 @@ class AnthropicProvider(VisionProvider):
             raise ProviderUnavailableError("anthropic SDK is not installed") from error
 
         media_type = "image/jpeg" if image_path.suffix.lower() in {".jpg", ".jpeg"} else f"image/{image_path.suffix.lower().lstrip('.')}"
-        client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model=self.model,
-            max_tokens=int(self.settings.get("max_tokens", 800)),
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": self.image_as_base64(image_path),
+        client: Any = anthropic.Anthropic(api_key=api_key)
+        try:
+            response = client.messages.create(
+                model=self.model,
+                max_tokens=int(self.settings.get("max_tokens", 800)),
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": self.image_as_base64(image_path),
+                                },
                             },
-                        },
-                        {"type": "text", "text": build_provider_prompt(metadata)},
-                    ],
-                }
-            ],
-        )
+                            {"type": "text", "text": self.build_prompt(metadata)},
+                        ],
+                    }
+                ],
+            )
+        except Exception as error:
+            raise ProviderUnavailableError(f"Anthropic request failed: {type(error).__name__}") from error
         text = "".join(getattr(block, "text", "") for block in response.content)
         return self.normalize(text)
-

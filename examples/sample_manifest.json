@@ -1,4 +1,5 @@
 {
+  "schema_version": 2,
   "run_id": "sample",
   "timestamp": "2026-05-25T00:00:00+00:00",
   "input_directory": "./photos",
@@ -7,11 +8,14 @@
   "metadata_threshold": 70,
   "files": [
     {
-      "original_path": "./photos/IMG_0001.jpg",
-      "new_path": "./photos/2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg",
+      "original_path": "IMG_0001.jpg",
+      "new_path": "2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg",
       "original_filename": "IMG_0001.jpg",
       "new_filename": "2026-05-25_dover-tn_shipping-container_deck-construction_001.jpg",
       "metadata_score": 65,
+      "source_sha256": "example-only-not-a-real-file-hash",
+      "source_size": 123456,
+      "source_mtime_ns": 1779667200000000000,
       "ai_used": true,
       "metadata": {
         "original_filename": "IMG_0001.jpg",
@@ -29,6 +33,6 @@
       },
       "status": "planned"
     }
-  ]
+  ],
+  "manifest_sha256": "91298ecf3ff1638cbaacd5c1b8132d6f485a819475d631ab3e2fcc330a90233b"
 }
-

@@ -4,34 +4,94 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "photosage"
-version = "0.1.0"
-description = "Metadata-first AI photo organization and safe renaming CLI."
+version = "0.3.0"
+description = "Privacy-first photo and video review, organization, search, and safe renaming."
+readme = "README.md"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
   "typer>=0.12.0",
   "PyYAML>=6.0.0",
-  "Pillow>=10.0.0",
-  "pillow-heif>=0.16.0",
-  "exifread>=3.0.0",
+  "Pillow>=12.3.0",
+  "pillow-heif>=1.5.0",
+  "exifread>=3.5.0",
   "rich>=13.0.0",
-  "python-dateutil>=2.8.2",
-  "anthropic>=0.40.0",
-  "openai>=1.0.0",
-  "google-genai>=1.0.0",
+  "python-dateutil>=2.9.0",
   "requests>=2.31.0",
-  "PySide6>=6.7.0"
 ]
+
+[project.optional-dependencies]
+cloud = [
+  "anthropic>=0.121.0",
+  "openai>=2.53.0",
+  "google-genai>=2.17.0",
+]
+gui = ["PySide6>=6.11.0"]
+all = [
+  "anthropic>=0.121.0",
+  "openai>=2.53.0",
+  "google-genai>=2.17.0",
+  "PySide6>=6.11.0",
+]
+dev = [
+  "build>=1.3.0",
+  "coverage>=7.10.0",
+  "pip-audit>=2.9.0",
+  "pytest>=9.0.0",
+  "pytest-qt>=4.5.0",
+  "hypothesis>=6.130.0",
+  "ruff>=0.11.0",
+  "twine>=6.2.0",
+  "pyinstaller>=6.16.0",
+  "pyright>=1.1.400",
+  "cyclonedx-bom>=7.0.0",
+]
+
+[tool.pyright]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+include = ["src"]
+exclude = ["src/photosage/gui"]
 
 [project.scripts]
 photosage = "photosage.cli:app"
 photosage-gui = "photosage.gui.app:main"
 
+[project.urls]
+Homepage = "https://github.com/mickpletcher/PhotoSage"
+Issues = "https://github.com/mickpletcher/PhotoSage/issues"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-photosage = ["gui/resources/styles/*.qss", "gui/resources/icons/.gitkeep"]
+photosage = ["gui/resources/styles/*.qss", "gui/resources/icons/.gitkeep", "resources/*.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+ignore = ["B008"]
+
+[tool.coverage.run]
+branch = true
+source = ["photosage"]
+omit = [
+  "src/photosage/gui/app.py",
+  "src/photosage/gui/main_window.py",
+  "src/photosage/gui/dialogs/*",
+  "src/photosage/gui/widgets/*",
+  "src/photosage/gui/workers/*",
+]
+
+[tool.coverage.report]
+fail_under = 75
+show_missing = true
+skip_covered = true

@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from photosage.manifest.manifest_writer import MANIFEST_SCHEMA_VERSION, manifest_checksum
+
 logger = logging.getLogger(__name__)
 
 REQUIRED_MANIFEST_KEYS = {"run_id", "timestamp", "input_directory", "files"}
@@ -29,6 +31,12 @@ def load_manifest(manifest_path: Path) -> dict[str, Any]:
     except json.JSONDecodeError as error:
         raise ManifestValidationError(f"Manifest is not valid JSON: {error}") from error
 
+    expected_checksum = manifest.get("manifest_sha256")
+    if not expected_checksum:
+        raise ManifestValidationError("Manifest checksum is missing")
+    if str(expected_checksum) != manifest_checksum(manifest):
+        raise ManifestValidationError("Manifest checksum does not match its contents")
+
     validate_manifest(manifest, path)
     logger.info("manifest loaded path=%s run_id=%s", path, manifest.get("run_id"))
     return manifest
@@ -38,6 +46,9 @@ def validate_manifest(manifest: dict[str, Any], manifest_path: Path | None = Non
     """Validate PhotoSage manifest structure."""
     if not isinstance(manifest, dict):
         raise ManifestValidationError("Manifest must be a JSON object")
+
+    if manifest.get("schema_version") != MANIFEST_SCHEMA_VERSION:
+        raise ManifestValidationError(f"Unsupported manifest schema version: {manifest.get('schema_version')}")
 
     missing = REQUIRED_MANIFEST_KEYS.difference(manifest)
     if missing:

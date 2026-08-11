@@ -24,10 +24,17 @@ class WorkingProvider(VisionProvider):
         return self.normalize({"primary_subject": "container", "confidence": 0.7})
 
 
+class UnexpectedFailingProvider(VisionProvider):
+    provider_name = "anthropic"
+
+    def analyze_image(self, image_path: Path, metadata: dict) -> dict:
+        raise RuntimeError("SDK failure")
+
+
 def test_provider_manager_falls_back_to_next_provider(monkeypatch, tmp_path):
     providers = {"anthropic": FailingProvider, "openai": WorkingProvider}
     monkeypatch.setattr(ProviderFactory, "PROVIDERS", providers)
-    config = AppConfig(vision_provider="anthropic", fallback_order=["openai"], provider_retry_count=1)
+    config = AppConfig(vision_provider="anthropic", fallback_order=["openai"], provider_retry_count=1, local_only=False)
     manager = ProviderManager(config, RetryConfig(attempts=1, initial_delay_seconds=0))
 
     response = manager.analyze_image(tmp_path / "photo.jpg", {})
@@ -38,7 +45,7 @@ def test_provider_manager_falls_back_to_next_provider(monkeypatch, tmp_path):
 
 def test_provider_manager_raises_when_all_providers_fail(monkeypatch, tmp_path):
     monkeypatch.setattr(ProviderFactory, "PROVIDERS", {"anthropic": FailingProvider})
-    config = AppConfig(vision_provider="anthropic", fallback_order=[], provider_retry_count=1)
+    config = AppConfig(vision_provider="anthropic", fallback_order=[], provider_retry_count=1, local_only=False)
     manager = ProviderManager(config, RetryConfig(attempts=1, initial_delay_seconds=0))
 
     try:
@@ -48,3 +55,11 @@ def test_provider_manager_raises_when_all_providers_fail(monkeypatch, tmp_path):
     else:
         raise AssertionError("Expected ProviderUnavailableError")
 
+
+def test_provider_manager_falls_back_after_unexpected_sdk_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(ProviderFactory, "PROVIDERS", {"anthropic": UnexpectedFailingProvider, "openai": WorkingProvider})
+    config = AppConfig(vision_provider="anthropic", fallback_order=["openai"], local_only=False, provider_retry_count=1)
+
+    response = ProviderManager(config).analyze_image(tmp_path / "photo.jpg", {})
+
+    assert response["provider"] == "openai"

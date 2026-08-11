@@ -1,5 +1,6 @@
 import pytest
 
+from photosage.providers.base import build_provider_prompt
 from photosage.providers.exceptions import InvalidResponseError
 from photosage.providers.response_normalizer import normalize_response
 
@@ -36,3 +37,19 @@ def test_normalize_response_rejects_invalid_json():
     with pytest.raises(InvalidResponseError):
         normalize_response("not json", provider="gemini", model="gemini-2.5-pro")
 
+
+def test_cloud_prompt_excludes_sensitive_metadata_by_default():
+    prompt = build_provider_prompt(
+        {
+            "absolute_path": "C:/Private/Mick/photo.jpg",
+            "original_filename": "private-name.jpg",
+            "latitude": 36.5,
+            "longitude": -87.8,
+            "camera_model": "Camera",
+        }
+    )
+
+    assert "Private" not in prompt
+    assert "private-name" not in prompt
+    assert "36.5" not in prompt
+    assert "Camera" in prompt

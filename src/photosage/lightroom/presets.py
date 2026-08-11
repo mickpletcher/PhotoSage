@@ -33,4 +33,3 @@ def get_preset(name: str | None) -> LightroomPreset | None:
     if not name:
         return None
     return PRESETS.get(name.lower())
-

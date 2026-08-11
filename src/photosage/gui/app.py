@@ -5,14 +5,14 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from photosage.config import load_config
+from photosage.config import default_config_path, load_config
 from photosage.gui.main_window import MainWindow
 from photosage.logging_config import configure_logging
 
 
 def main() -> int:
     """Start the PhotoSage desktop application."""
-    config_path = Path("config/settings.yaml")
+    config_path = default_config_path()
     config = load_config(config_path)
     configure_logging(config.log_file)
     app = QApplication(sys.argv)
@@ -26,4 +26,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

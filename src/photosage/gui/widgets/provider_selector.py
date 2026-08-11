@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QComboBox, QHBoxLayout, QLabel, QSlider, QWidget
-from PySide6.QtCore import Qt
 
 
 class ProviderSelector(QWidget):
@@ -13,7 +12,7 @@ class ProviderSelector(QWidget):
     def __init__(self) -> None:
         super().__init__()
         self.provider_combo = QComboBox()
-        self.provider_combo.addItems(["anthropic", "openai", "gemini", "ollama", "lmstudio"])
+        self.provider_combo.addItems(["anthropic", "openai", "gemini", "kimi", "ollama", "lmstudio", "openai_compatible_local"])
         self.local_only = QCheckBox("Local only")
         self.force_ai = QCheckBox("Force AI")
         self.threshold = QSlider(Qt.Horizontal)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
@@ -13,6 +14,7 @@ from photosage.lightroom.folder_organizer import category_for_photo, organized_d
 from photosage.lightroom.metadata_mapper import lightroom_score_bonus, merge_lightroom_metadata
 from photosage.lightroom.presets import LightroomPreset, get_preset
 from photosage.lightroom.xmp_reader import read_xmp_sidecar, sidecar_path_for_image
+from photosage.manifest.manifest_reader import load_manifest
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
@@ -20,6 +22,7 @@ from photosage.providers.exceptions import ProviderError
 from photosage.providers.provider_manager import ProviderManager
 from photosage.rename.duplicate_handler import existing_names, unique_destination
 from photosage.rename.filename_builder import build_filename
+from photosage.rename.renamer import source_fingerprint
 from photosage.scanner import scan_images
 
 logger = logging.getLogger(__name__)
@@ -54,6 +57,7 @@ def _effective_config(config: AppConfig, preset: LightroomPreset | None) -> AppC
         watch_folders=config.watch_folders,
         watch_stable_seconds=config.watch_stable_seconds,
         duplicate_hash_distance=config.duplicate_hash_distance,
+        detect_duplicates_during_rename=config.detect_duplicates_during_rename,
         geocode_cache_file=config.geocode_cache_file,
         geocode_cache_ttl_days=config.geocode_cache_ttl_days,
         folder_policy=config.folder_policy,
@@ -113,7 +117,11 @@ def build_lightroom_manifest(
     provider_manager = ProviderManager(effective) if analyze_ai else None
 
     scanned_images = scan_images(input_directory, recursive=recursive)
-    duplicate_data = duplicate_index(find_duplicate_groups(scanned_images, effective.duplicate_hash_distance))
+    duplicate_data = (
+        duplicate_index(find_duplicate_groups(scanned_images, effective.duplicate_hash_distance))
+        if effective.detect_duplicates_during_rename
+        else {}
+    )
 
     for image_path in scanned_images:
         metadata = _apply_geocode_cache(extract_metadata(image_path), effective)
@@ -139,7 +147,9 @@ def build_lightroom_manifest(
         if organize:
             preliminary_name = build_filename(merged_metadata, ai_response, 1, effective.filename_format)
             if effective.folder_policy == "date-first" and not effective.folder_keyword_map:
-                target_directory = organized_destination(input_directory, merged_metadata, preliminary_name, ai_response, preset.category if preset else None).parent
+                target_directory = organized_destination(
+                    input_directory, merged_metadata, preliminary_name, ai_response, preset.category if preset else None
+                ).parent
             else:
                 target_directory = policy_destination(
                     input_directory,
@@ -168,7 +178,13 @@ def build_lightroom_manifest(
         sidecar_path = sidecar_path_for_image(image_path)
         new_sidecar_path = new_path.with_suffix(".xmp") if sidecar_path.exists() else None
         category = category_for_photo(merged_metadata, ai_response, preset.category if preset else None)
-        status = "ai-unavailable" if ai_attempted and not ai_used else ("planned" if dry_run else "pending")
+        status = (
+            "ai-unavailable"
+            if ai_attempted and not ai_used
+            else ("ai-required" if ai_required and not ai_used else ("planned" if dry_run else "pending"))
+        )
+        fingerprint = source_fingerprint(image_path)
+        sidecar_fingerprint = source_fingerprint(sidecar_path) if sidecar_path.exists() else {}
 
         duplicate_info = duplicate_data.get(str(image_path.resolve()), {})
         files.append(
@@ -200,6 +216,10 @@ def build_lightroom_manifest(
                 "astro_capture_night": merged_metadata.get("astro_capture_night"),
                 "astro_session_id": merged_metadata.get("astro_session_id"),
                 "fits_detected": bool(merged_metadata.get("fits_detected")),
+                **fingerprint,
+                "sidecar_sha256": sidecar_fingerprint.get("source_sha256"),
+                "sidecar_size": sidecar_fingerprint.get("source_size"),
+                "sidecar_mtime_ns": sidecar_fingerprint.get("source_mtime_ns"),
             }
         )
         logger.info(
@@ -246,8 +266,18 @@ def _astro_group_summary(files: list[dict[str, Any]]) -> dict[str, dict[str, Any
 
 def apply_lightroom_manifest(
     manifest: dict[str, Any],
+    manifest_path: Path,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
+    manifest["dry_run"] = False
+    manifest["apply_started_at"] = datetime.now(timezone.utc).isoformat()
+    for item in manifest["files"]:
+        if item.get("status") == "planned":
+            item["status"] = "pending"
+        if item.get("sidecar_status") == "planned":
+            item["sidecar_status"] = "pending"
+    write_manifest(manifest, manifest_path.parent, manifest_path)
+
     for item in manifest["files"]:
         original_path = Path(item["original_path"])
         new_path = Path(item["new_path"])
@@ -258,24 +288,28 @@ def apply_lightroom_manifest(
             logger.warning("lightroom rename skipped status=%s path=%s", item["status"], original_path)
             if progress_callback:
                 progress_callback(item)
+            write_manifest(manifest, manifest_path.parent, manifest_path)
             continue
         if original_path == new_path:
             item["status"] = "unchanged"
             item["sidecar_status"] = "unchanged" if sidecar_path else "none"
             if progress_callback:
                 progress_callback(item)
+            write_manifest(manifest, manifest_path.parent, manifest_path)
             continue
         if not original_path.exists():
             item["status"] = "missing"
             logger.warning("lightroom rename skipped missing file: %s", original_path)
             if progress_callback:
                 progress_callback(item)
+            write_manifest(manifest, manifest_path.parent, manifest_path)
             continue
         if new_path.exists():
             item["status"] = "overwrite-prevented"
             logger.warning("lightroom rename skipped overwrite risk: %s", new_path)
             if progress_callback:
                 progress_callback(item)
+            write_manifest(manifest, manifest_path.parent, manifest_path)
             continue
         if new_sidecar_path and new_sidecar_path.exists():
             item["status"] = "overwrite-prevented"
@@ -283,13 +317,51 @@ def apply_lightroom_manifest(
             logger.warning("lightroom sidecar skipped overwrite risk: %s", new_sidecar_path)
             if progress_callback:
                 progress_callback(item)
+            write_manifest(manifest, manifest_path.parent, manifest_path)
             continue
 
+        try:
+            current_fingerprint = source_fingerprint(original_path)
+        except OSError:
+            current_fingerprint = {}
+        if any(current_fingerprint.get(key) != item.get(key) for key in ("source_sha256", "source_size", "source_mtime_ns")):
+            item["status"] = "source-changed"
+            item["error"] = "Source file no longer matches the reviewed manifest"
+            write_manifest(manifest, manifest_path.parent, manifest_path)
+            if progress_callback:
+                progress_callback(item)
+            continue
+
+        if sidecar_path:
+            try:
+                sidecar_current = source_fingerprint(sidecar_path)
+            except OSError:
+                sidecar_current = {}
+            sidecar_expected = {
+                "source_sha256": item.get("sidecar_sha256"),
+                "source_size": item.get("sidecar_size"),
+                "source_mtime_ns": item.get("sidecar_mtime_ns"),
+            }
+            if sidecar_current != sidecar_expected:
+                item["status"] = "source-changed"
+                item["sidecar_status"] = "source-changed"
+                item["error"] = "XMP sidecar no longer matches the reviewed manifest"
+                write_manifest(manifest, manifest_path.parent, manifest_path)
+                if progress_callback:
+                    progress_callback(item)
+                continue
+
+        item["status"] = "rename-started"
+        write_manifest(manifest, manifest_path.parent, manifest_path)
         try:
             new_path.parent.mkdir(parents=True, exist_ok=True)
             original_path.rename(new_path)
             item["status"] = "renamed"
+            item["renamed_at"] = datetime.now(timezone.utc).isoformat()
+            write_manifest(manifest, manifest_path.parent, manifest_path)
             if sidecar_path and sidecar_path.exists() and new_sidecar_path:
+                item["sidecar_status"] = "rename-started"
+                write_manifest(manifest, manifest_path.parent, manifest_path)
                 new_sidecar_path.parent.mkdir(parents=True, exist_ok=True)
                 sidecar_path.rename(new_sidecar_path)
                 item["sidecar_status"] = "renamed"
@@ -298,11 +370,33 @@ def apply_lightroom_manifest(
             else:
                 item["sidecar_status"] = "none"
         except OSError as error:
-            item["status"] = "error"
             item["error"] = str(error)
             logger.error("lightroom rename failed: %s -> %s error=%s", original_path, new_path, error)
+            rollback_errors: list[str] = []
+            try:
+                if new_sidecar_path and new_sidecar_path.exists() and sidecar_path and not sidecar_path.exists():
+                    sidecar_path.parent.mkdir(parents=True, exist_ok=True)
+                    new_sidecar_path.rename(sidecar_path)
+            except OSError as rollback_error:
+                rollback_errors.append(f"sidecar rollback failed: {rollback_error}")
+            try:
+                if new_path.exists() and not original_path.exists():
+                    original_path.parent.mkdir(parents=True, exist_ok=True)
+                    new_path.rename(original_path)
+            except OSError as rollback_error:
+                rollback_errors.append(f"image rollback failed: {rollback_error}")
+            if rollback_errors:
+                item["status"] = "partial"
+                item["sidecar_status"] = "partial" if sidecar_path else "none"
+                item["error"] = f"{error}; {'; '.join(rollback_errors)}"
+            else:
+                item["status"] = "rolled-back"
+                item["sidecar_status"] = "rolled-back" if sidecar_path else "none"
+        write_manifest(manifest, manifest_path.parent, manifest_path)
         if progress_callback:
             progress_callback(item)
+    manifest["apply_completed_at"] = datetime.now(timezone.utc).isoformat()
+    write_manifest(manifest, manifest_path.parent, manifest_path)
     return manifest
 
 
@@ -339,7 +433,21 @@ def process_lightroom_export(
     logger.info("lightroom manifest generated: %s", manifest_path)
 
     if apply:
-        manifest = apply_lightroom_manifest(manifest, progress_callback=progress_callback)
-        write_manifest(manifest, config.manifest_directory, manifest_path)
+        manifest = apply_lightroom_manifest(manifest, manifest_path, progress_callback=progress_callback)
 
     return LightroomProcessResult(manifest=manifest, manifest_path=manifest_path, warnings=warnings)
+
+
+def apply_reviewed_lightroom_manifest(
+    manifest_path: Path,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
+) -> LightroomProcessResult:
+    manifest = load_manifest(manifest_path)
+    if not manifest.get("dry_run") or not manifest.get("lightroom_mode"):
+        raise ValueError("Only an unapplied Lightroom preview manifest can be approved")
+    applied = apply_lightroom_manifest(manifest, manifest_path.resolve(), progress_callback=progress_callback)
+    return LightroomProcessResult(
+        manifest=applied,
+        manifest_path=manifest_path.resolve(),
+        warnings=list(manifest.get("catalog_warnings") or []),
+    )

@@ -1,12 +1,9 @@
-vision_provider: anthropic
+vision_provider: ollama
 metadata_threshold: 70
 dry_run_default: true
-local_only: false
+local_only: true
 
 fallback_order:
-  - anthropic
-  - openai
-  - gemini
   - ollama
   - lmstudio
 
@@ -22,6 +19,7 @@ max_concurrent_ai_requests: 2
 watch_folders: []
 watch_stable_seconds: 5.0
 duplicate_hash_distance: 5
+detect_duplicates_during_rename: false
 geocode_cache_file: .photosage-cache/geocode_cache.json
 geocode_cache_ttl_days: 365
 folder_policy: date-first
@@ -31,15 +29,31 @@ profile_directory: .photosage-cache/profiles
 recent_manifest_file: .photosage-cache/recent_manifests.json
 astro_profile: deep-sky
 astro_group_by_capture_night: true
+review_confidence_threshold: 0.7
+require_manual_review_for_ai: true
+search_database: .photosage-cache/search.sqlite3
+embedding_backend: hash
+embedding_model: nomic-embed-text
 
 anthropic:
   model: claude-sonnet-4
+  include_sensitive_metadata: false
 
 openai:
   model: gpt-4.1-mini
+  include_sensitive_metadata: false
 
 gemini:
   model: gemini-2.5-pro
+  include_sensitive_metadata: false
+
+kimi:
+  base_url: https://api.moonshot.ai/v1
+  model: kimi-k3
+  reasoning_effort: low
+  max_completion_tokens: 1200
+  timeout_seconds: 180
+  include_sensitive_metadata: false
 
 ollama:
   endpoint: http://localhost:11434
@@ -49,10 +63,24 @@ ollama:
   temperature: 0.1
   max_dimension: 1600
   jpeg_quality: 90
+  endpoint_allowlist: []
+  allow_insecure_lan_endpoint: false
+  allow_sensitive_embeddings: false
 
 lmstudio:
   endpoint: http://localhost:1234/v1
   model: local-vision-model
+  timeout_seconds: 180
+  healthcheck_timeout_seconds: 5
+  temperature: 0.1
+  max_dimension: 1600
+  jpeg_quality: 90
+
+openai_compatible_local:
+  endpoint: http://localhost:8000/v1
+  model: local-vision-model
+  endpoint_allowlist: []
+  allow_insecure_lan_endpoint: false
   timeout_seconds: 180
   healthcheck_timeout_seconds: 5
   temperature: 0.1

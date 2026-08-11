@@ -10,7 +10,8 @@ from typing import Any
 import requests
 from PIL import Image
 
-from photosage.providers.base import VisionProvider, build_provider_prompt
+from photosage.providers.base import VisionProvider
+from photosage.providers.endpoint_policy import validate_local_endpoint
 from photosage.providers.exceptions import InvalidResponseError, ProviderUnavailableError
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,11 @@ class LMStudioProvider(VisionProvider):
     def __init__(self, settings: dict[str, Any] | None = None) -> None:
         super().__init__(settings=settings)
         self.endpoint = str(self.settings.get("endpoint") or "http://localhost:1234/v1").rstrip("/")
+        self.endpoint_trust = validate_local_endpoint(
+            self.endpoint,
+            self.settings.get("endpoint_allowlist"),
+            bool(self.settings.get("allow_insecure_lan_endpoint", False)),
+        ).classification
         self.timeout_seconds = float(self.settings.get("timeout_seconds") or self.settings.get("timeout") or 180)
         self.temperature = float(self.settings.get("temperature", 0.1))
         self.max_dimension = int(self.settings.get("max_dimension", 1600))
@@ -63,7 +69,7 @@ class LMStudioProvider(VisionProvider):
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": build_provider_prompt(metadata)},
+                        {"type": "text", "text": self.build_prompt(metadata)},
                         {"type": "image_url", "image_url": {"url": encoded_image}},
                     ],
                 }
@@ -71,7 +77,12 @@ class LMStudioProvider(VisionProvider):
         }
         started = time.perf_counter()
         try:
-            response = requests.post(f"{self.endpoint}/chat/completions", json=payload, timeout=self.timeout_seconds)
+            response = requests.post(
+                f"{self.endpoint}/chat/completions",
+                json=payload,
+                timeout=self.timeout_seconds,
+                allow_redirects=False,
+            )
         except requests.Timeout as error:
             raise ProviderUnavailableError(f"ERROR: LM Studio request timed out at {self.endpoint}") from error
         except requests.RequestException as error:

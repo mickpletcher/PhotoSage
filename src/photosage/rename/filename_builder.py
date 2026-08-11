@@ -92,6 +92,8 @@ def build_filename_components(metadata: dict[str, Any], ai_response: dict[str, A
         "exposure": sanitize_part(metadata.get("astro_exposure") or "unknown-exposure", "unknown-exposure"),
         "capture_night": sanitize_part(metadata.get("astro_capture_night") or date_for_filename(metadata), "unknown-night"),
         "session": sanitize_part(metadata.get("astro_session_id") or "astro-session", "astro-session"),
+        "duration": sanitize_part(str(metadata.get("duration_seconds") or "unknown-duration"), "unknown-duration"),
+        "codec": sanitize_part(metadata.get("codec") or "unknown-codec", "unknown-codec"),
     }
 
 

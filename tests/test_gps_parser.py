@@ -1,4 +1,4 @@
-from photosage.metadata.gps_parser import parse_gps_altitude, parse_gps_coordinate, parse_gps_info, parse_gps_timestamp
+from photosage.metadata.gps_parser import parse_gps_altitude, parse_gps_coordinate, parse_gps_info
 
 
 def test_parse_gps_coordinate_north_and_west():
@@ -27,4 +27,3 @@ def test_parse_gps_info_returns_full_payload():
 
 def test_parse_gps_altitude_below_sea_level():
     assert parse_gps_altitude(20, 1) == -20
-

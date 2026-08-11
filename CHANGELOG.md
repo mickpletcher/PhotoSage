@@ -8,6 +8,35 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added generated CLI documentation and comprehensive configuration, Kimi,
+  recovery, architecture, troubleshooting, catalog integration, contribution,
+  security, and Windows release guides with drift checks.
+- Added Kimi K3 vision support through Moonshot AI's OpenAI-compatible API, JSON mode, official-endpoint enforcement, health reporting, GUI selection, privacy filtering, and tests.
+- Added strict local endpoint trust classification, loopback defaults, explicit LAN allowlisting, public-address blocking, and redirect prevention.
+- Added strict configuration validation, atomic settings writes, `photosage config validate`, and `photosage doctor`.
+- Added manual manifest review with approve, reject, edit, audit history, low-confidence gates, and GUI controls.
+- Added `photosage recover` with interrupted-run inspection, resume, rollback, and destination integrity rollback.
+- Added provider benchmarking and a generic local OpenAI-compatible vision provider.
+- Added duplicate keeper recommendations, CSV export, and reviewed move manifests.
+- Added side-by-side folder policy previews with collision and folder reports.
+- Added MP4, MOV, M4V, AVI, MKV, and WebM metadata plus temporary ffmpeg keyframe classification.
+- Added private SQLite search with offline hash vectors and optional local Ollama embeddings.
+- Added offline HTML timeline and GPS views in the CLI and desktop GUI.
+- Added safe Lightroom Classic, Capture One, and Apple Photos export handoffs.
+- Added fail-closed Authenticode release packaging with SBOM, checksums, artifact provenance, and signed executable smoke testing.
+- Added Pyright checks, GUI review tests, endpoint policy tests, recovery tests, scale tests, and injected integrity-failure tests.
+- Added schema version 2 manifests with atomic writes, manifest SHA256 protection, per-source SHA256 fingerprints, and per-operation rename journaling.
+- Added exact reviewed-manifest apply for normal, GUI, watch, astrophotography, and Lightroom workflows.
+- Added interrupted-run rollback support for `rename-started` and partial operations.
+- Added transactional Lightroom image and XMP sidecar rollback.
+- Added privacy-safe cloud metadata allowlisting with explicit sensitive-metadata opt-in.
+- Added concurrent AI analysis using `max_concurrent_ai_requests`.
+- Added BK-tree duplicate matching and opt-in duplicate analysis during normal rename planning.
+- Added packaged runtime prompt resources, platform-aware installed configuration, and `python -m photosage`.
+- Added a universal locked dependency file and separated cloud, GUI, and development extras.
+- Added Linux, Windows, macOS, Python 3.11, and Python 3.13 CI coverage.
+- Added full Ruff lint and format checks, branch coverage enforcement, dependency vulnerability auditing, package validation, and installed-wheel smoke tests.
+- Added tests for manifest tampering, interrupted rename recovery, changed-source blocking, unexpected provider failures, cloud privacy filtering, and Lightroom sidecar rollback.
 - Added watch folder processing with file stability checks, approval queue manifests, and explicit apply mode.
 - Added local duplicate detection with perceptual hashing, duplicate preview output, JSON export, and manifest duplicate group fields.
 - Added GUI performance helpers for thumbnail caching, faster table loading, saved profiles, and recent manifest tracking.

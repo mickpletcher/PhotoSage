@@ -10,7 +10,7 @@ from photosage.manifest.rollback_report import RollbackOperation, generate_rollb
 
 logger = logging.getLogger(__name__)
 
-ROLLBACKABLE_STATUSES = {"renamed"}
+ROLLBACKABLE_STATUSES = {"renamed", "rename-started", "partial"}
 
 
 @dataclass(slots=True)
@@ -86,7 +86,7 @@ def perform_rollback(
             source, destination, validation_message = validate_rollback_operation(item, base_directory)
             sidecar_source: Path | None = None
             sidecar_destination: Path | None = None
-            if item.get("sidecar_status") == "renamed" and item.get("new_xmp_path") and item.get("xmp_path"):
+            if item.get("sidecar_status") in {"renamed", "rename-started", "partial"} and item.get("new_xmp_path") and item.get("xmp_path"):
                 sidecar_source = safe_restore_path(Path(str(item["new_xmp_path"])), base_directory)
                 sidecar_destination = safe_restore_path(Path(str(item["xmp_path"])), base_directory)
                 if sidecar_destination.exists():
@@ -130,7 +130,9 @@ def perform_rollback(
             if not continue_on_error:
                 break
 
-    logger.info("rollback summary=%s", {status: sum(1 for op in operations if op.status == status) for status in {op.status for op in operations}})
+    logger.info(
+        "rollback summary=%s", {status: sum(1 for op in operations if op.status == status) for status in {op.status for op in operations}}
+    )
     return operations
 
 

@@ -5,7 +5,8 @@ from pathlib import Path
 
 PRIMARY_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".webp", ".tiff"}
 FITS_IMAGE_EXTENSIONS = {".fits", ".fit"}
-SUPPORTED_IMAGE_EXTENSIONS = PRIMARY_IMAGE_EXTENSIONS | FITS_IMAGE_EXTENSIONS
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
+SUPPORTED_IMAGE_EXTENSIONS = PRIMARY_IMAGE_EXTENSIONS | FITS_IMAGE_EXTENSIONS | VIDEO_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 

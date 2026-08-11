@@ -41,16 +41,16 @@ def has_useful_original_filename(filename: str | None) -> bool:
 def score_metadata_details(metadata: Any) -> MetadataScore:
     """Score metadata quality and return the reason breakdown."""
     has_date_taken = bool(_get(metadata, "date_taken") or _get(metadata, "exif_date_taken"))
-    has_gps = (
-        (_get(metadata, "latitude") is not None and _get(metadata, "longitude") is not None)
-        or (_get(metadata, "gps_latitude") is not None and _get(metadata, "gps_longitude") is not None)
+    has_gps = (_get(metadata, "latitude") is not None and _get(metadata, "longitude") is not None) or (
+        _get(metadata, "gps_latitude") is not None and _get(metadata, "gps_longitude") is not None
     )
-    has_user_metadata = bool(_get(metadata, "title") or _get(metadata, "description") or _get(metadata, "keywords") or _get(metadata, "tags"))
+    has_user_metadata = bool(
+        _get(metadata, "title") or _get(metadata, "description") or _get(metadata, "keywords") or _get(metadata, "tags")
+    )
     has_filename = has_useful_original_filename(_get(metadata, "original_filename"))
     has_camera = bool(_get(metadata, "camera_make") or _get(metadata, "camera_model"))
     has_dimensions = bool(
-        (_get(metadata, "width") and _get(metadata, "height"))
-        or (_get(metadata, "image_width") and _get(metadata, "image_height"))
+        (_get(metadata, "width") and _get(metadata, "height")) or (_get(metadata, "image_width") and _get(metadata, "image_height"))
     )
 
     score = 0
@@ -75,7 +75,6 @@ def score_metadata_details(metadata: Any) -> MetadataScore:
 def score_metadata(metadata: Any) -> int:
     """Score metadata quality for deciding whether AI fallback is needed."""
     return score_metadata_details(metadata).total
-
 
 
 def metadata_is_sufficient(metadata: Any, threshold: int) -> bool:

@@ -21,4 +21,3 @@ class ProgressPanel(QWidget):
     def set_status(self, percent: int, message: str) -> None:
         self.progress.setValue(percent)
         self.label.setText(message)
-

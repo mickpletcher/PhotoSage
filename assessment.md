@@ -1,145 +1,119 @@
 # PhotoSage Assessment
 
-Last reviewed: 2026-05-25
+Last reviewed: 2026-08-11
 
-## Short Version
+## Status
 
-PhotoSage is a Python 3.11+ photo organization tool.
+PhotoSage is a production-ready local photo renaming application for reviewed workflows.
 
-It is metadata first. It previews before renaming. It writes manifests. It supports undo.
+The CLI and GUI share the same safety contract. Preview creates a checksummed review target. Apply consumes that exact plan, journals its progress, and refuses changed source files.
 
-The project is no longer just a scaffold. The main architecture is in place.
+## Verified Strengths
 
-## What Works Now
+- Atomic, SHA256-protected manifest writes.
+- Per-file rename journaling and interrupted-run rollback.
+- Transactional Lightroom image and XMP sidecar handling.
+- Exact reviewed-manifest apply in the CLI and GUI.
+- Source SHA256, size, and modification-time verification before apply.
+- No-overwrite and path-containment enforcement.
+- Local-only AI is the default.
+- Cloud prompts exclude paths, filenames, GPS, titles, descriptions, OCR text, and keywords by default.
+- Provider retries and fallback survive expected and unexpected SDK failures.
+- Concurrent AI requests use the configured limit.
+- Duplicate matching uses a BK-tree instead of an all-pairs comparison.
+- Duplicate analysis during normal rename planning is opt-in.
+- Installable wheel includes runtime prompt resources and works outside the repository.
+- Locked development dependencies and vulnerability auditing.
+- Cross-platform CI for Linux, Windows, and macOS.
+- Full Ruff lint and format enforcement.
+- Branch coverage enforcement.
+- Loopback-by-default local endpoint trust with explicit LAN allowlisting.
+- Strict typed configuration validation and atomic config writes.
+- Manual approve, reject, and filename-edit review history.
+- Interrupted-run inspection, resume, rollback, and post-rename integrity verification.
+- Provider benchmarking and generic local OpenAI-compatible support.
+- Kimi K3 cloud vision support through Moonshot's official OpenAI-compatible API, with JSON mode and local-only blocking.
+- Video metadata and temporary keyframe classification.
+- Private local search plus offline timeline and GPS browser reports.
+- Lightroom Classic, Capture One, and Apple Photos export handoffs.
+- Fail-closed signed Windows release workflow with SBOM, checksums, and provenance.
+- Generated CLI reference plus complete configuration, Kimi, recovery,
+  architecture, troubleshooting, catalog, contributor, security, and release
+  guides.
+- Documentation checks fail when the CLI reference is stale or an application
+  setting/provider is missing from the configuration reference.
 
-- CLI: `photosage`
-- GUI: `photosage-gui`
-- Metadata extraction and scoring
-- Safe rename preview
-- Safe apply mode
-- Manifest generation
-- Manifest integrity validation
-- Undo and rollback reports
-- Provider abstraction
-- Ollama local provider support
-- LM Studio local provider support
-- Live provider analysis during preview and apply planning
-- Lightroom export folder support
-- XMP sidecar parsing and rename sync
-- Screenshot and document image labeling
-- Watch folder approval queues
-- Duplicate detection with local perceptual hashes
-- Folder organization policies
-- Local reverse geocoding cache
-- GUI thumbnail cache and recent manifest helpers
-- Astrophotography mode with FITS metadata and capture-night grouping
-- Pytest coverage across core modules
+## Safety Contract
 
-## Core Flow
+1. Preview does not rename files.
+2. Normal apply requires a reviewed manifest.
+3. Unreviewed apply requires the explicit `--allow-unreviewed` override.
+4. Every manifest is written atomically and protected by a SHA256 checksum.
+5. Every source is fingerprinted during preview and rechecked before apply.
+6. Every rename is journaled before the filesystem operation.
+7. Existing destinations are never overwritten.
+8. Undo never overwrites an original path.
+9. Lightroom image and sidecar failures are rolled back together when possible.
+10. Manifest paths cannot escape the recorded input directory.
+11. Local-only mode blocks cloud providers.
+12. Cloud metadata is allowlisted unless sensitive metadata is explicitly enabled.
+13. Local provider endpoints cannot resolve to public addresses.
+14. LAN provider endpoints require an exact allowlist and HTTPS by default.
+15. Low-confidence AI and duplicate entries require review.
+16. Destination content is fingerprinted after every rename.
+17. Local search databases and browser reports remain ignored private artifacts.
+18. Kimi is treated as cloud AI, uses only Moonshot's official global endpoint, and never receives sensitive metadata unless explicitly enabled.
 
-1. Scan supported images.
-2. Extract local metadata.
-3. Score metadata quality.
-4. Call the configured provider when metadata is weak or AI is forced.
-5. Normalize AI output.
-6. Build filenames locally.
-7. Preview changes.
-8. Write a manifest.
-9. Rename only with `--apply`.
-10. Undo from the manifest if needed.
-
-## Non-Negotiable Safety Rules
-
-- Never rename without `--apply`.
-- Never overwrite files.
-- Never delete source photos.
-- Always write a manifest before apply mode.
-- Undo must never overwrite files.
-- `local_only: true` must block cloud providers.
-- Providers must not rename or move files.
-- Do not log API keys or image bytes.
-- Do not modify Lightroom catalog databases.
-
-## Main Files
-
-- `README.md`: Start here.
-- `config/settings.yaml`: User settings.
-- `src/photosage/cli.py`: CLI commands.
-- `src/photosage/scanner.py`: File scanning.
-- `src/photosage/metadata/exif_reader.py`: Metadata extraction.
-- `src/photosage/metadata/metadata_score.py`: Metadata scoring.
-- `src/photosage/providers/provider_manager.py`: Provider fallback and local-only policy.
-- `src/photosage/providers/ollama_provider.py`: Ollama provider.
-- `src/photosage/providers/lmstudio_provider.py`: LM Studio provider.
-- `src/photosage/rename/renamer.py`: Rename preview and apply.
-- `src/photosage/manifest/undo.py`: Undo and rollback.
-- `src/photosage/lightroom/exporter.py`: Lightroom export workflow.
-- `src/photosage/gui/app.py`: GUI entry point.
-- `tests/`: Test suite.
-
-## Commands To Know
+## Normal Workflow
 
 ```powershell
-photosage scan --input ./photos
 photosage preview --input ./photos
-photosage rename --input ./photos --apply
-photosage undo --manifest ./manifests/rename_manifest.json
-photosage manifest validate --manifest ./manifests/rename_manifest.json
-photosage duplicates --input ./photos --output-json ./duplicates.json
-photosage watch --input ./IncomingPhotos
-photosage geocode list
-photosage astro --input ./AstroExports --profile deep-sky
-photosage providers
-photosage preview --input ./photos --provider lmstudio --local-only
-photosage ollama models
-photosage lightroom-process --input ./LightroomExports --preview
+photosage rename --manifest ./manifests/rename_manifest_YYYYMMDD_HHMMSS.json --apply
+photosage undo --manifest ./manifests/rename_manifest_YYYYMMDD_HHMMSS.json --dry-run
+photosage undo --manifest ./manifests/rename_manifest_YYYYMMDD_HHMMSS.json --force
 ```
 
-## Docs To Keep Current
+## Verification
 
-- `README.md`
-- `CHANGELOG.md`
-- `assessment.md`
-- `completed-upgrades.md`
-- `docs/lightroom-integration.md`
-- `specs/README.md`
-- `specs/001-lm-studio-provider/`
+Verified on Windows 11 with Python 3.11:
 
-`future-upgrades.md` is local-only and ignored by git.
-
-## Tests
+- 172 tests pass.
+- Branch coverage is 77% against a 75% gate.
+- Ruff check and format checks pass.
+- Pyright reports zero errors and warnings.
+- The dependency audit reports no known vulnerabilities.
+- Wheel and source distributions build and pass Twine checks.
+- Standalone CLI and GUI executables build and pass startup smoke tests.
+- The installed wheel works outside the repository and contains its prompt resources.
+- CycloneDX SBOM generation succeeds.
+- Documentation links, workflow YAML, PowerShell syntax, and Git whitespace checks pass.
+- CLI and configuration references are checked against the live application.
 
 Run:
 
 ```powershell
 python -m pytest
+python -m coverage run -m pytest
+python -m coverage report
+python -m ruff check src tests scripts
+python -m ruff format --check src tests scripts
+pyright src
+python scripts/check_docs.py
+python -m pip_audit -r requirements.lock --progress-spinner off
+python -m build
+python -m twine check dist/*
 ```
 
-Most recent known result:
+CI repeats these checks and installs the built wheel from outside the repository.
 
-```text
-103+ passed, 1 skipped
-```
+## Remaining Product Opportunities
 
-The skipped test is expected when optional GUI pieces are unavailable.
+The remaining roadmap is intentionally outside the current scope:
 
-## Known Gaps
+- OCR generation for scanned documents.
+- Privacy-first unnamed face clustering.
+- NAS and home-lab deployment.
+- A third-party plugin API.
+- Direct catalog write-back, which remains excluded because it weakens the safety boundary.
 
-Good next work:
-
-1. Add stronger end-to-end CLI smoke tests around provider-backed preview.
-2. Add provider benchmarking.
-3. Add manual review queue editing.
-4. Add native catalog integrations.
-
-## Future Agent Checklist
-
-Before changing behavior:
-
-1. Read `README.md`.
-2. Read this file.
-3. Check `CHANGELOG.md`.
-4. Check active specs under `specs/`.
-5. Run `python -m pytest`.
-
-If a change affects rename safety, manifests, providers, or user workflow, update docs and tests in the same pass.
+Any change affecting rename safety, manifests, providers, privacy, dependencies, or user workflow must update code, tests, and documentation in the same pass.

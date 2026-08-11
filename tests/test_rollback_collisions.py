@@ -44,4 +44,3 @@ def test_rollback_report_contains_summary_and_operations(tmp_path):
     assert report["summary"]["restored"] == 1
     assert report["operations"][0]["source"] == str(renamed)
     assert report["operations"][0]["destination"] == str(original)
-

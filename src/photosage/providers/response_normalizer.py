@@ -102,4 +102,3 @@ def normalize_response(payload: str | dict[str, Any], provider: str, model: str)
     normalized["model"] = model
     logger.info("normalized response from provider=%s model=%s", provider, model)
     return normalized
-

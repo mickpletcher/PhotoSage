@@ -6,7 +6,6 @@ from typing import Any
 
 from dateutil import parser
 
-
 ASTRO_PROFILES = {"lunar", "solar", "planetary", "deep-sky"}
 FITS_EXTENSIONS = {".fit", ".fits"}
 FITS_SIDECAREXTENSIONS = [".fits", ".fit"]

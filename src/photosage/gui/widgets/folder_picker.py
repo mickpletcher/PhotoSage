@@ -47,4 +47,3 @@ class FolderPicker(QWidget):
             if path.is_dir():
                 self.set_folder(path)
                 break
-

@@ -29,4 +29,3 @@ def validate_lightroom_export_directory(path: Path, force_catalog_modify: bool =
     if warnings and not force_catalog_modify:
         raise CatalogSafetyError("Unsafe Lightroom catalog location blocked: " + " ".join(warnings))
     return warnings
-

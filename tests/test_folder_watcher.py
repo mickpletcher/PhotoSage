@@ -3,6 +3,8 @@ from pathlib import Path
 from PIL import Image
 
 from photosage.config import AppConfig
+from photosage.manifest.manifest_writer import write_manifest
+from photosage.rename.renamer import apply_reviewed_manifest
 from photosage.watch.folder_watcher import build_approval_queue, process_watch_once
 
 
@@ -31,3 +33,16 @@ def test_watch_apply_requires_explicit_apply(tmp_path):
 
     assert image.exists()
     assert manifest["approval_required"] is True
+
+
+def test_watch_approval_is_recorded_when_reviewed_manifest_is_applied(tmp_path):
+    image = tmp_path / "IMG_001.jpg"
+    _image(image)
+    config = AppConfig(manifest_directory=tmp_path / "manifests", watch_stable_seconds=0, metadata_threshold=0)
+    manifest = build_approval_queue(tmp_path, config)
+    manifest_path = write_manifest(manifest, config.manifest_directory)
+
+    result = apply_reviewed_manifest(manifest_path)
+
+    assert result.manifest["approval_required"] is False
+    assert result.manifest["files"][0]["approval_status"] == "approved"

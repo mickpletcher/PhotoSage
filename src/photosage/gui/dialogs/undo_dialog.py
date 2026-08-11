@@ -52,4 +52,3 @@ class UndoDialog(QDialog):
             return
         self.manifest_selected.emit(Path(item.text()))
         self.accept()
-

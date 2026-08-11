@@ -46,7 +46,9 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _add_issue(issues: list[ManifestIssue], severity: str, code: str, message: str, path: Path | None = None, index: int | None = None) -> None:
+def _add_issue(
+    issues: list[ManifestIssue], severity: str, code: str, message: str, path: Path | None = None, index: int | None = None
+) -> None:
     issues.append(ManifestIssue(severity=severity, code=code, message=message, path=str(path) if path else "", index=index))
 
 
@@ -79,21 +81,32 @@ def validate_manifest_integrity(manifest_path: Path, include_hashes: bool = Fals
             continue
 
         status = str(item.get("status") or "")
-        if status == "renamed":
+        if status in {"renamed", "rename-started", "partial"}:
             if not new_path.exists():
                 _add_issue(issues, "error", "missing_renamed_file", "Renamed file is missing.", new_path, index)
             if original_path.exists():
-                _add_issue(issues, "warning", "undo_collision", "Original path already exists. Undo would skip this file.", original_path, index)
-        elif status in {"planned", "pending", "unchanged"}:
+                _add_issue(
+                    issues, "warning", "undo_collision", "Original path already exists. Undo would skip this file.", original_path, index
+                )
+        elif status in {"planned", "pending", "unchanged", "needs-review", "rejected", "integrity-rollback", "recovery-ready"}:
             if not original_path.exists():
                 _add_issue(issues, "warning", "missing_original_file", "Original file is missing.", original_path, index)
-        elif status in {"missing", "overwrite-prevented", "error"}:
+        elif status in {
+            "missing",
+            "overwrite-prevented",
+            "error",
+            "integrity-error",
+            "recovery-source-changed",
+            "recovery-destination-changed",
+            "recovery-collision",
+            "recovery-missing",
+        }:
             _add_issue(issues, "warning", f"manifest_status_{status}", f"Manifest entry status is {status}.", new_path, index)
 
         xmp_path = item.get("xmp_path")
         new_xmp_path = item.get("new_xmp_path")
         sidecar_status = item.get("sidecar_status")
-        if sidecar_status == "renamed" and xmp_path and new_xmp_path:
+        if sidecar_status in {"renamed", "rename-started", "partial"} and xmp_path and new_xmp_path:
             try:
                 original_sidecar = safe_restore_path(Path(str(xmp_path)), base_directory)
                 new_sidecar = safe_restore_path(Path(str(new_xmp_path)), base_directory)
@@ -103,7 +116,14 @@ def validate_manifest_integrity(manifest_path: Path, include_hashes: bool = Fals
             if not new_sidecar.exists():
                 _add_issue(issues, "error", "missing_sidecar", "Renamed XMP sidecar is missing.", new_sidecar, index)
             if original_sidecar.exists():
-                _add_issue(issues, "warning", "sidecar_undo_collision", "Original XMP sidecar already exists. Undo would skip or collide.", original_sidecar, index)
+                _add_issue(
+                    issues,
+                    "warning",
+                    "sidecar_undo_collision",
+                    "Original XMP sidecar already exists. Undo would skip or collide.",
+                    original_sidecar,
+                    index,
+                )
         elif item.get("xmp_detected") and not xmp_path:
             _add_issue(issues, "warning", "sidecar_path_missing", "XMP was detected but xmp_path is missing.", index=index)
 

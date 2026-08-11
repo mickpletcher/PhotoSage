@@ -22,4 +22,3 @@ class ImagePreview(QLabel):
             self.setText("Preview unavailable")
             return
         self.setPixmap(pixmap.scaled(self.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation))
-

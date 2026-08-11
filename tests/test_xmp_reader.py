@@ -1,6 +1,5 @@
 from photosage.lightroom.xmp_reader import read_xmp, read_xmp_sidecar, sidecar_path_for_image
 
-
 XMP_TEXT = """<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
 <x:xmpmeta xmlns:x="adobe:ns:meta/">
   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"

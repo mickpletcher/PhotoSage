@@ -28,4 +28,3 @@ def test_score_metadata_low_signal_requires_ai():
 def test_useful_filename_detection():
     assert has_useful_original_filename("shipping-container-build.jpg") is True
     assert has_useful_original_filename("IMG_0001.jpg") is False
-

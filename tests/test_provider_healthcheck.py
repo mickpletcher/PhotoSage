@@ -1,7 +1,14 @@
 import requests
 
 from photosage.config import AppConfig
-from photosage.providers.healthcheck import check_lmstudio, check_ollama, check_providers, list_lmstudio_models, list_ollama_models, ollama_info
+from photosage.providers.healthcheck import (
+    check_lmstudio,
+    check_ollama,
+    check_providers,
+    list_lmstudio_models,
+    list_ollama_models,
+    ollama_info,
+)
 
 
 class FakeResponse:
@@ -20,7 +27,7 @@ class FakeResponse:
 def test_list_ollama_models_reads_api_tags(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"models": [{"name": "llava:13b"}, {"name": "bakllava"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"models": [{"name": "llava:13b"}, {"name": "bakllava"}]}),
     )
 
     assert list_ollama_models("http://localhost:11434") == ["bakllava", "llava:13b"]
@@ -29,7 +36,7 @@ def test_list_ollama_models_reads_api_tags(monkeypatch):
 def test_list_lmstudio_models_reads_openai_models(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"data": [{"id": "qwen2.5-vl"}, {"id": "llava"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"data": [{"id": "qwen2.5-vl"}, {"id": "llava"}]}),
     )
 
     assert list_lmstudio_models("http://localhost:1234/v1") == ["llava", "qwen2.5-vl"]
@@ -38,7 +45,7 @@ def test_list_lmstudio_models_reads_openai_models(monkeypatch):
 def test_check_ollama_reports_missing_model(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"models": [{"name": "llava"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"models": [{"name": "llava"}]}),
     )
     config = AppConfig(provider_settings={"ollama": {"model": "llava:13b", "endpoint": "http://localhost:11434"}})
 
@@ -51,7 +58,7 @@ def test_check_ollama_reports_missing_model(monkeypatch):
 def test_check_ollama_reports_available_model(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"models": [{"name": "llava:13b"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"models": [{"name": "llava:13b"}]}),
     )
     config = AppConfig(provider_settings={"ollama": {"model": "llava:13b", "endpoint": "http://localhost:11434"}})
 
@@ -64,7 +71,7 @@ def test_check_ollama_reports_available_model(monkeypatch):
 def test_check_lmstudio_reports_available_model(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"data": [{"id": "qwen2.5-vl"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"data": [{"id": "qwen2.5-vl"}]}),
     )
     config = AppConfig(provider_settings={"lmstudio": {"model": "qwen2.5-vl", "endpoint": "http://localhost:1234/v1"}})
 
@@ -77,7 +84,7 @@ def test_check_lmstudio_reports_available_model(monkeypatch):
 def test_check_lmstudio_reports_missing_model(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"data": [{"id": "llava"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"data": [{"id": "llava"}]}),
     )
     config = AppConfig(provider_settings={"lmstudio": {"model": "qwen2.5-vl", "endpoint": "http://localhost:1234/v1"}})
 
@@ -90,7 +97,7 @@ def test_check_lmstudio_reports_missing_model(monkeypatch):
 def test_check_providers_disables_cloud_when_local_only(monkeypatch):
     monkeypatch.setattr(
         "photosage.providers.healthcheck.requests.get",
-        lambda url, timeout: FakeResponse({"models": [{"name": "llava"}]}),
+        lambda url, timeout, **kwargs: FakeResponse({"models": [{"name": "llava"}]}),
     )
     config = AppConfig(local_only=True, provider_settings={"ollama": {"model": "llava"}})
 
@@ -101,10 +108,27 @@ def test_check_providers_disables_cloud_when_local_only(monkeypatch):
     assert statuses["anthropic"] == "DISABLED"
     assert statuses["openai"] == "DISABLED"
     assert statuses["gemini"] == "DISABLED"
+    assert statuses["kimi"] == "DISABLED"
+
+
+def test_check_providers_reports_configured_kimi_without_api_call(monkeypatch):
+    monkeypatch.setattr(
+        "photosage.providers.healthcheck.requests.get",
+        lambda url, timeout, **kwargs: FakeResponse({"models": [] if url.endswith("/models") else [{"name": "llava"}]}),
+    )
+    monkeypatch.setattr("photosage.providers.healthcheck._module_available", lambda name: True)
+    monkeypatch.setenv("MOONSHOT_API_KEY", "test-key")
+    config = AppConfig(local_only=False, provider_settings={"kimi": {"model": "kimi-k3"}})
+
+    health = next(item for item in check_providers(config) if item.name == "kimi")
+
+    assert health.status == "CONFIGURED"
+    assert health.model == "kimi-k3"
+    assert health.endpoint == "https://api.moonshot.ai/v1"
 
 
 def test_ollama_info_best_effort(monkeypatch):
-    def fake_get(url, timeout):
+    def fake_get(url, timeout, **kwargs):
         if url.endswith("/api/version"):
             return FakeResponse({"version": "0.1.0"})
         return FakeResponse({"models": [{"name": "llava"}]})

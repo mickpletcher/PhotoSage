@@ -140,9 +140,15 @@ def test_cli_rename_apply_and_undo_force(tmp_path):
     _write_config(config)
     _write_image(photo)
 
+    preview_output = tmp_path / "preview.json"
+    preview_result = runner.invoke(
+        app,
+        ["preview", "--input", str(photo.parent), "--output-json", str(preview_output), "--config", str(config)],
+    )
+    reviewed_manifest = sorted((tmp_path / "manifests").glob("rename_manifest_*.json"))[-1]
     rename_result = runner.invoke(
         app,
-        ["rename", "--input", str(photo.parent), "--apply", "--output-json", str(output), "--config", str(config)],
+        ["rename", "--manifest", str(reviewed_manifest), "--apply", "--output-json", str(output), "--config", str(config)],
     )
     rename_data = json.loads(output.read_text(encoding="utf-8"))
     written_manifest = sorted((tmp_path / "manifests").glob("rename_manifest_*.json"))[-1]
@@ -152,6 +158,7 @@ def test_cli_rename_apply_and_undo_force(tmp_path):
         ["undo", "--manifest", str(written_manifest), "--force", "--output-json", str(undo_output), "--config", str(config)],
     )
 
+    assert preview_result.exit_code == 0
     assert rename_result.exit_code == 0
     assert undo_result.exit_code == 0
     assert photo.exists()
@@ -168,6 +175,32 @@ def test_cli_invalid_provider_fails(tmp_path):
     result = runner.invoke(app, ["scan", "--input", str(tmp_path / "photos"), "--provider", "bad", "--config", str(config)])
 
     assert result.exit_code != 0
+
+
+def test_cli_local_only_replaces_kimi_with_ollama(tmp_path):
+    config = tmp_path / "config.yaml"
+    output = tmp_path / "scan.json"
+    _write_config(config)
+    _write_image(tmp_path / "photos" / "IMG_0001.jpg")
+
+    result = runner.invoke(
+        app,
+        [
+            "scan",
+            "--input",
+            str(tmp_path / "photos"),
+            "--provider",
+            "kimi",
+            "--local-only",
+            "--output-json",
+            str(output),
+            "--config",
+            str(config),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert json.loads(output.read_text(encoding="utf-8"))["summary"]["provider_selected"] == "ollama"
 
 
 def test_cli_undo_dry_run_does_not_move(tmp_path):
@@ -238,7 +271,9 @@ def test_cli_providers_displays_health(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "photosage.cli.check_providers",
         lambda cli_config: [
-            type("Health", (), {"status": "OK", "name": "ollama", "model": "llava", "endpoint": "http://localhost:11434", "message": "ok"})()
+            type(
+                "Health", (), {"status": "OK", "name": "ollama", "model": "llava", "endpoint": "http://localhost:11434", "message": "ok"}
+            )()
         ],
     )
 

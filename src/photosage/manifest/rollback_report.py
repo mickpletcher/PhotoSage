@@ -70,4 +70,3 @@ def generate_rollback_report(
         json.dump(report.to_dict(), handle, indent=2)
     logger.info("rollback report generated path=%s", report_path)
     return report_path
-

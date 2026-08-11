@@ -1,46 +1,167 @@
 from __future__ import annotations
 
 import json
+import shutil
 import time
 from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import typer
+import yaml
 from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, TextColumn
 from rich.table import Table
 
-from photosage.config import AppConfig, load_config
+from photosage.browsing.report import build_browse_data, write_browse_report
+from photosage.config import PROVIDERS, AppConfig, ConfigValidationError, default_config_path, load_config
 from photosage.duplicates.detector import find_duplicate_groups, write_duplicate_report
+from photosage.duplicates.review import build_duplicate_review_manifest, duplicate_review_rows, write_duplicate_csv
 from photosage.geocoding.cache import GeocodeCache
 from photosage.lightroom.catalog_safety import CatalogSafetyError
-from photosage.lightroom.exporter import process_lightroom_export
+from photosage.lightroom.exporter import apply_reviewed_lightroom_manifest, process_lightroom_export
 from photosage.logging_config import configure_logging
-from photosage.manifest.manifest_reader import ManifestValidationError
+from photosage.manifest.manifest_reader import ManifestValidationError, load_manifest
+from photosage.manifest.recovery import recover_manifest
+from photosage.manifest.review import apply_review_decisions
 from photosage.manifest.undo import rollback_all
 from photosage.manifest.validator import validate_manifest_integrity
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
+from photosage.organization.preview import folder_policy_preview
+from photosage.providers.benchmark import benchmark_providers, write_benchmark_reports
 from photosage.providers.healthcheck import check_providers, list_ollama_models, ollama_info
-from photosage.rename.renamer import preview_renames, rename_files
+from photosage.providers.provider_factory import ProviderFactory
+from photosage.rename.renamer import apply_reviewed_manifest, build_rename_manifest, preview_renames, rename_files
 from photosage.scanner import count_unsupported_files, scan_images
+from photosage.search.index import build_search_index, search_index
 from photosage.watch.folder_watcher import process_watch_once
 
-SUPPORTED_PROVIDERS = {"anthropic", "openai", "gemini", "ollama", "lmstudio"}
+SUPPORTED_PROVIDERS = PROVIDERS
 
 app = typer.Typer(
-    help="Metadata-first AI photo organization and safe renaming CLI.",
-    epilog="Examples: photosage scan --input ./photos | photosage preview --input ./photos | photosage rename --input ./photos --apply | photosage undo --manifest ./manifests/file.json",
+    help="Privacy-first photo and video review, organization, search, and safe renaming.",
+    epilog="Examples: photosage scan --input ./photos | photosage preview --input ./photos | photosage review --manifest ./manifests/file.json | photosage rename --manifest ./manifests/file.json --apply",
 )
 ollama_app = typer.Typer(help="Inspect local Ollama vision model support.")
 manifest_app = typer.Typer(help="Inspect and validate PhotoSage manifests.")
 geocode_app = typer.Typer(help="Manage local reverse geocoding aliases and cache entries.")
+config_app = typer.Typer(help="Validate and inspect PhotoSage configuration.")
+benchmark_app = typer.Typer(help="Benchmark configured vision providers.")
+search_app = typer.Typer(help="Build and query a private local media search index.")
 app.add_typer(ollama_app, name="ollama")
 app.add_typer(manifest_app, name="manifest")
 app.add_typer(geocode_app, name="geocode")
+app.add_typer(config_app, name="config")
+app.add_typer(benchmark_app, name="benchmark")
+app.add_typer(search_app, name="search")
 console = Console()
+DEFAULT_CONFIG_PATH = default_config_path()
+
+
+@config_app.command("validate", help="Validate configuration types, ranges, providers, and filename tokens.")
+def config_validate(
+    config: Annotated[
+        Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Configuration file to validate.")
+    ] = DEFAULT_CONFIG_PATH,
+) -> None:
+    try:
+        loaded = load_config(config)
+    except (ConfigValidationError, OSError, ValueError, yaml.YAMLError) as error:
+        console.print(f"[red]Invalid configuration:[/red] {error}")
+        raise typer.Exit(code=1) from error
+    console.print(f"[green]Configuration valid:[/green] {config}")
+    console.print(f"Provider: {loaded.vision_provider} | local-only: {loaded.local_only}")
+
+
+@app.command(help="Check configuration, providers, paths, and optional media tools.")
+def doctor(
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
+) -> None:
+    cli_config = _config(config)
+    table = Table(title="PhotoSage Doctor")
+    table.add_column("Check")
+    table.add_column("Status")
+    table.add_column("Detail", overflow="fold")
+    table.add_row("configuration", "OK", str(config))
+    for health in check_providers(cli_config):
+        table.add_row(f"provider:{health.name}", health.status, health.message)
+    ffmpeg = shutil.which("ffmpeg")
+    ffprobe = shutil.which("ffprobe")
+    table.add_row("ffmpeg", "OK" if ffmpeg else "OPTIONAL", ffmpeg or "Required for video keyframes")
+    table.add_row("ffprobe", "OK" if ffprobe else "OPTIONAL", ffprobe or "Required for full video metadata")
+    console.print(table)
+
+
+@benchmark_app.command("providers", help="Compare provider latency, retries, validity, confidence, and routing.")
+def benchmark_provider_command(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)],
+    provider: Annotated[Optional[list[str]], typer.Option("--provider", help="Provider to benchmark. Repeatable.")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, help="Maximum number of sample images.")] = 10,
+    allow_cloud: Annotated[bool, typer.Option("--allow-cloud", help="Permit billable cloud provider calls.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json")] = None,
+    output_markdown: Annotated[Optional[Path], typer.Option("--output-markdown")] = None,
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False)] = DEFAULT_CONFIG_PATH,
+) -> None:
+    cli_config = _config(config)
+    names = provider or [cli_config.vision_provider]
+    unsupported = set(names).difference(SUPPORTED_PROVIDERS)
+    if unsupported:
+        raise typer.BadParameter(f"Unsupported providers: {sorted(unsupported)}")
+    images = scan_images(input, recursive=True)[:limit]
+    if not images:
+        raise typer.BadParameter("No supported images found")
+    try:
+        report = benchmark_providers(images, cli_config, names, allow_cloud=allow_cloud)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+    table = Table(title="Provider Benchmark")
+    table.add_column("Provider")
+    table.add_column("Success")
+    table.add_column("Latency ms", justify="right")
+    table.add_column("Confidence", justify="right")
+    table.add_column("Attempts", justify="right")
+    for name, summary in report["summary"].items():
+        table.add_row(
+            name,
+            f"{summary['successful']}/{summary['runs']}",
+            str(summary["average_latency_ms"]),
+            str(summary["average_confidence"]),
+            str(summary["total_attempts"]),
+        )
+    console.print(table)
+    write_benchmark_reports(report, output_json, output_markdown)
+
+
+@search_app.command("index", help="Index photo and video metadata into a local SQLite database.")
+def search_index_command(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)],
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive")] = True,
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False)] = DEFAULT_CONFIG_PATH,
+) -> None:
+    cli_config = _config(config)
+    result = build_search_index(input, cli_config, recursive=recursive)
+    console.print(_summary_table(result))
+
+
+@search_app.command("query", help="Search the private local metadata and embedding index.")
+def search_query_command(
+    query: Annotated[str, typer.Argument(help="Natural-language search text.")],
+    limit: Annotated[int, typer.Option("--limit", min=1, max=500)] = 20,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json")] = None,
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False)] = DEFAULT_CONFIG_PATH,
+) -> None:
+    cli_config = _config(config)
+    results = search_index(query, cli_config, limit=limit)
+    table = Table(title="PhotoSage Search")
+    table.add_column("Score", justify="right")
+    table.add_column("File", overflow="fold")
+    table.add_column("Indexed Text", overflow="fold")
+    for result in results:
+        table.add_row(str(result["score"]), result["path"], result["text"])
+    console.print(table)
+    _write_json(output_json, {"query": query, "results": results})
 
 
 def _config(
@@ -49,7 +170,10 @@ def _config(
     local_only: bool = False,
     verbose: bool = False,
 ) -> AppConfig:
-    config = load_config(config_path)
+    try:
+        config = load_config(config_path)
+    except (ConfigValidationError, OSError, ValueError, yaml.YAMLError) as error:
+        raise typer.BadParameter(f"Invalid configuration: {error}") from error
     if provider:
         provider_name = provider.lower()
         if provider_name not in SUPPORTED_PROVIDERS:
@@ -57,7 +181,8 @@ def _config(
         config.vision_provider = provider_name
     if local_only:
         config.local_only = True
-        config.vision_provider = "ollama" if config.vision_provider not in {"ollama", "lmstudio"} else config.vision_provider
+        if not ProviderFactory.is_local_provider(config.vision_provider):
+            config.vision_provider = "ollama"
     configure_logging(config.log_file, verbose=verbose)
     return config
 
@@ -76,6 +201,66 @@ def _status_counts(items: list[dict[str, Any]]) -> dict[str, int]:
     for item in items:
         counts[item["status"]] = counts.get(item["status"], 0) + 1
     return counts
+
+
+@app.command(help="Inspect, resume, or roll back an interrupted manifest.")
+def recover(
+    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False)],
+    resume: Annotated[bool, typer.Option("--resume", help="Resume operations that are still safe to apply.")] = False,
+    rollback: Annotated[bool, typer.Option("--rollback", help="Roll back completed operations.")] = False,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write the recovery report as JSON.")] = None,
+) -> None:
+    if resume and rollback:
+        raise typer.BadParameter("Choose either --resume or --rollback")
+    action = "resume" if resume else ("rollback" if rollback else "inspect")
+    try:
+        report = recover_manifest(manifest, action=action)
+    except (ManifestValidationError, OSError, ValueError) as error:
+        console.print(f"[red]Recovery failed:[/red] {error}")
+        raise typer.Exit(code=1) from error
+    table = Table(title=f"Recovery {action}")
+    table.add_column("Recorded")
+    table.add_column("Recovery State")
+    table.add_column("Original", overflow="fold")
+    table.add_column("Destination", overflow="fold")
+    for operation in report["operations"]:
+        table.add_row(
+            str(operation.get("recorded_status", "")),
+            str(operation.get("recovery_state") or operation.get("status", "")),
+            str(operation.get("original_path") or operation.get("destination", "")),
+            str(operation.get("new_path") or operation.get("source", "")),
+        )
+    console.print(table)
+    _write_json(output_json, report)
+
+
+@app.command(help="Review, approve, reject, or edit proposed manifest filenames.")
+def review(
+    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False)],
+    approve: Annotated[Optional[list[str]], typer.Option("--approve", help="Approve a filename or original path. Repeatable.")] = None,
+    reject: Annotated[Optional[list[str]], typer.Option("--reject", help="Reject a filename or original path. Repeatable.")] = None,
+    rename: Annotated[Optional[list[str]], typer.Option("--rename", help="Edit a proposal as ORIGINAL=NEW_FILENAME. Repeatable.")] = None,
+    reviewer: Annotated[str, typer.Option("--reviewer", help="Reviewer label recorded in the manifest.")] = "local-user",
+) -> None:
+    decisions = [{"selector": selector, "action": "approve"} for selector in approve or []]
+    decisions.extend({"selector": selector, "action": "reject"} for selector in reject or [])
+    for edit in rename or []:
+        if "=" not in edit:
+            raise typer.BadParameter("--rename must use ORIGINAL=NEW_FILENAME")
+        selector, new_filename = edit.split("=", 1)
+        decisions.append({"selector": selector, "action": "edit", "new_filename": new_filename})
+    try:
+        reviewed = apply_review_decisions(manifest, decisions, reviewer=reviewer) if decisions else load_manifest(manifest)
+    except (ManifestValidationError, OSError, ValueError) as error:
+        console.print(f"[red]Review failed:[/red] {error}")
+        raise typer.Exit(code=1) from error
+    table = _preview_table(reviewed["files"], title="PhotoSage Review Queue")
+    console.print(table)
+    counts: dict[str, int] = {}
+    for item in reviewed["files"]:
+        status = str(item.get("approval_status", "not-required"))
+        counts[status] = counts.get(status, 0) + 1
+    console.print(_summary_table(counts))
 
 
 def _preview_table(files: list[dict[str, Any]], title: str = "PhotoSage Rename Preview") -> Table:
@@ -137,7 +322,15 @@ def _scan_summary(input_path: Path, config: AppConfig, recursive: bool, force_ai
                 }
             )
         except Exception as error:
-            rows.append({"path": str(image_path), "filename": image_path.name, "metadata_score": 0, "ai_required": False, "status": f"error: {error}"})
+            rows.append(
+                {
+                    "path": str(image_path),
+                    "filename": image_path.name,
+                    "metadata_score": 0,
+                    "ai_required": False,
+                    "status": f"error: {error}",
+                }
+            )
 
     ai_required_count = sum(1 for row in rows if row["ai_required"])
     sufficient_count = sum(1 for row in rows if row["status"] == "ok" and not row["ai_required"])
@@ -159,7 +352,7 @@ def _scan_summary(input_path: Path, config: AppConfig, recursive: bool, force_ai
 @app.command(help="Show configured provider availability and local/cloud status.")
 def providers(
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config, verbose=verbose)
     table = Table(title="Available Providers")
@@ -167,17 +360,25 @@ def providers(
     table.add_column("Provider")
     table.add_column("Model")
     table.add_column("Endpoint")
+    table.add_column("Trust")
     table.add_column("Message", overflow="fold")
     for health in check_providers(cli_config):
         style = "green" if health.status == "OK" else ("yellow" if health.status == "DISABLED" else "red")
-        table.add_row(f"[{style}]{health.status}[/{style}]", health.name, health.model, health.endpoint, health.message)
+        table.add_row(
+            f"[{style}]{health.status}[/{style}]",
+            health.name,
+            health.model,
+            health.endpoint,
+            getattr(health, "trust", "unknown"),
+            health.message,
+        )
     console.print(table)
 
 
 @ollama_app.command("models", help="List locally installed Ollama models.")
 def ollama_models(
     endpoint: Annotated[Optional[str], typer.Option("--endpoint", help="Ollama endpoint override.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config)
     settings = cli_config.provider_settings.get("ollama", {})
@@ -200,7 +401,7 @@ def ollama_models(
 @ollama_app.command("info", help="Show best-effort Ollama diagnostics.")
 def ollama_info_command(
     endpoint: Annotated[Optional[str], typer.Option("--endpoint", help="Ollama endpoint override.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config)
     settings = cli_config.provider_settings.get("ollama", {})
@@ -226,7 +427,7 @@ def manifest_validate(
     hashes: Annotated[bool, typer.Option("--hashes", help="Compute SHA256 hashes for existing referenced files.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write validation report to JSON.")] = None,
     verbose: Annotated[bool, typer.Option("--verbose", help="Print validation issues.")] = False,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     _config(config, verbose=verbose)
     report = validate_manifest_integrity(manifest, include_hashes=hashes)
@@ -243,7 +444,9 @@ def manifest_validate(
         table.add_column("Message", overflow="fold")
         for issue in report.issues:
             issue_style = "red" if issue.severity == "error" else "yellow"
-            table.add_row(issue.severity, issue.code, "" if issue.index is None else str(issue.index), issue.path, issue.message, style=issue_style)
+            table.add_row(
+                issue.severity, issue.code, "" if issue.index is None else str(issue.index), issue.path, issue.message, style=issue_style
+            )
         console.print(table)
     if hashes:
         console.print(f"[cyan]Hashes computed:[/cyan] {len(report.hashes)}")
@@ -257,7 +460,7 @@ def geocode_set(
     latitude: Annotated[float, typer.Option("--lat", help="Latitude.")],
     longitude: Annotated[float, typer.Option("--lon", help="Longitude.")],
     location: Annotated[str, typer.Option("--location", help="Location text to use in filenames.")],
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config)
     GeocodeCache(cli_config.geocode_cache_file, cli_config.geocode_cache_ttl_days).set(latitude, longitude, location)
@@ -266,7 +469,7 @@ def geocode_set(
 
 @geocode_app.command("list", help="List cached GPS location names.")
 def geocode_list(
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config)
     cache = GeocodeCache(cli_config.geocode_cache_file, cli_config.geocode_cache_ttl_days)
@@ -284,7 +487,11 @@ def duplicates(
     input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to scan.")],
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write duplicate groups to JSON.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    output_csv: Annotated[Optional[Path], typer.Option("--output-csv", help="Write review recommendations to CSV.")] = None,
+    review_folder: Annotated[
+        Optional[Path], typer.Option("--review-folder", help="Build a reviewed-manifest plan to move non-keepers into this folder.")
+    ] = None,
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config)
     groups = find_duplicate_groups(scan_images(input, recursive=recursive), cli_config.duplicate_hash_distance)
@@ -298,43 +505,121 @@ def duplicates(
     if output_json:
         write_duplicate_report(groups, output_json)
         console.print(f"[cyan]Duplicate report:[/cyan] {output_json}")
+    rows = duplicate_review_rows(groups)
+    if output_csv:
+        write_duplicate_csv(rows, output_csv)
+        console.print(f"[cyan]Duplicate CSV:[/cyan] {output_csv}")
+    if review_folder:
+        manifest_path = build_duplicate_review_manifest(input, review_folder, groups, cli_config.manifest_directory)
+        console.print(f"[cyan]Duplicate review manifest:[/cyan] {manifest_path}")
+        console.print("Review entries with 'photosage review', then apply the exact manifest.")
+
+
+@app.command("organize-preview", help="Compare folder organization policies without creating folders or moving files.")
+def organize_preview(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)],
+    policy: Annotated[Optional[list[str]], typer.Option("--policy", help="Policy to preview. Repeatable.")] = None,
+    output_json: Annotated[Optional[Path], typer.Option("--output-json")] = None,
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False)] = DEFAULT_CONFIG_PATH,
+) -> None:
+    cli_config = _config(config)
+    policies = policy or ["date-first", "location-first", "project-first"]
+    unsupported = set(policies).difference({"date-first", "location-first", "project-first", "custom"})
+    if unsupported:
+        raise typer.BadParameter(f"Unsupported folder policies: {sorted(unsupported)}")
+    manifest = build_rename_manifest(input, cli_config, dry_run=True, recursive=cli_config.recursive_scanning)
+    report = folder_policy_preview(manifest, input, policies)
+    table = Table(title="Folder Organization Preview")
+    table.add_column("Policy")
+    table.add_column("Folders", justify="right")
+    table.add_column("Collisions", justify="right")
+    table.add_column("Destination Tree", overflow="fold")
+    for name, result in report["policies"].items():
+        relative_folders = [str(Path(folder).relative_to(input.resolve())) for folder in result["folders"]]
+        table.add_row(name, str(result["folder_count"]), str(len(result["collisions"])), "\n".join(relative_folders))
+    console.print(table)
+    _write_json(output_json, report)
+
+
+@app.command(help="Generate private offline timeline and GPS map views.")
+def browse(
+    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True)],
+    output_html: Annotated[Path, typer.Option("--output-html")] = Path("photosage-browser.html"),
+    output_json: Annotated[Optional[Path], typer.Option("--output-json")] = None,
+    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive")] = True,
+) -> None:
+    data = build_browse_data(input, recursive=recursive)
+    write_browse_report(data, output_html, output_json)
+    console.print(f"[green]Offline browser report:[/green] {output_html.resolve()}")
+    console.print(_summary_table({"timeline_months": len(data["timeline"]), "map_points": len(data["map_points"])}))
 
 
 @app.command(help="Process stable files from a watched folder into an approval queue or apply after explicit approval.")
 def watch(
-    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Folder to check for incoming photos.")],
-    apply: Annotated[bool, typer.Option("--apply", help="Apply safe renames for stable files. Omit this to build an approval queue only.")] = False,
+    input: Annotated[
+        Optional[Path], typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Folder to check for incoming photos.")
+    ] = None,
+    manifest: Annotated[
+        Optional[Path],
+        typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Reviewed watch queue manifest to apply."),
+    ] = None,
+    apply: Annotated[
+        bool, typer.Option("--apply", help="Apply a reviewed watch queue manifest. Omit this to build an approval queue only.")
+    ] = False,
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
-    force_ai: Annotated[bool, typer.Option("--force-ai", help="Mark files as AI-required. Watch mode does not call AI during queue creation.")] = False,
+    force_ai: Annotated[
+        bool, typer.Option("--force-ai", help="Mark files as AI-required. Watch mode does not call AI during queue creation.")
+    ] = False,
     provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
     local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write watch result to JSON.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
+    if apply and not manifest:
+        raise typer.BadParameter("Watch apply requires a reviewed --manifest")
+    if not apply and not input:
+        raise typer.BadParameter("Provide --input to build a watch approval queue")
+    if manifest and input:
+        raise typer.BadParameter("Choose --manifest or --input, not both")
     if apply and not typer.confirm("Apply watch queue renames now?", default=False):
         console.print("[yellow]Watch apply cancelled. No files were renamed.[/yellow]")
         return
-    manifest = process_watch_once(input, cli_config, apply=apply, recursive=recursive, force_ai=force_ai)
-    console.print(_preview_table(manifest["files"], title="Watch Folder Queue" if not apply else "Watch Folder Apply"))
+    if apply:
+        assert manifest is not None
+        result = apply_reviewed_manifest(manifest)
+        watch_manifest = result.manifest
+        watch_manifest["manifest_path"] = str(result.manifest_path)
+    else:
+        assert input is not None
+        watch_manifest = process_watch_once(input, cli_config, apply=False, recursive=recursive, force_ai=force_ai)
+    console.print(_preview_table(watch_manifest["files"], title="Watch Folder Queue" if not apply else "Watch Folder Apply"))
     console.print(
         _summary_table(
             {
                 "mode": "apply" if apply else "approval_queue",
-                "files": len(manifest["files"]),
-                "approval_required": manifest.get("approval_required", not apply),
-                "manifest": manifest.get("manifest_path", ""),
+                "files": len(watch_manifest["files"]),
+                "approval_required": watch_manifest.get("approval_required", not apply),
+                "manifest": watch_manifest.get("manifest_path", ""),
             }
         )
     )
-    _write_json(output_json, manifest)
+    _write_json(output_json, watch_manifest)
 
 
 @app.command(help="Preview or apply astrophotography filenames with capture-night grouping and FITS metadata.")
 def astro(
-    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Astrophotography image directory.")],
+    input: Annotated[
+        Optional[Path],
+        typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Astrophotography image directory."),
+    ] = None,
+    manifest: Annotated[
+        Optional[Path],
+        typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Reviewed astro preview manifest to apply."),
+    ] = None,
     apply: Annotated[bool, typer.Option("--apply", help="Actually rename files. Omit this for preview only.")] = False,
+    allow_unreviewed: Annotated[bool, typer.Option("--allow-unreviewed", help="Build and apply an unreviewed astro plan.")] = False,
     profile: Annotated[str, typer.Option("--profile", help="Astro profile: lunar, solar, planetary, or deep-sky.")] = "deep-sky",
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
     force_ai: Annotated[bool, typer.Option("--force-ai", help="Use configured AI provider if metadata is weak.")] = False,
@@ -342,7 +627,7 @@ def astro(
     local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write astro manifest to JSON.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     if profile not in {"lunar", "solar", "planetary", "deep-sky"}:
         raise typer.BadParameter("Profile must be lunar, solar, planetary, or deep-sky.")
@@ -352,12 +637,22 @@ def astro(
         astro_format = "{capture_night}_{astro_target}_{telescope}_{filter}_{counter}"
     astro_config = replace(cli_config, filename_format=astro_format, astro_profile=profile)
 
-    if apply:
+    if manifest and input:
+        raise typer.BadParameter("Choose --manifest or --input, not both")
+    if apply and manifest:
+        result = apply_reviewed_manifest(manifest)
+    elif apply and input and allow_unreviewed:
         result = rename_files(input, astro_config, apply=True, force_ai=force_ai, recursive=recursive, analyze_ai=force_ai)
-    else:
+    elif apply:
+        raise typer.BadParameter("Astro apply requires a reviewed --manifest, or --input with --allow-unreviewed")
+    elif input:
         result = preview_renames(input, astro_config, force_ai=force_ai, recursive=recursive, analyze_ai=force_ai)
+    else:
+        raise typer.BadParameter("Provide --input to build an astro preview")
 
-    console.print(_preview_table(result.manifest["files"], title="Astrophotography Rename Preview" if not apply else "Astrophotography Rename Apply"))
+    console.print(
+        _preview_table(result.manifest["files"], title="Astrophotography Rename Preview" if not apply else "Astrophotography Rename Apply")
+    )
     groups = result.manifest.get("astro_groups", {})
     group_table = Table(title="Capture Night Groups")
     group_table.add_column("Capture Night")
@@ -365,7 +660,9 @@ def astro(
     group_table.add_column("Targets", overflow="fold")
     group_table.add_column("Profiles")
     for capture_night, details in groups.items():
-        group_table.add_row(capture_night, str(details.get("count", 0)), ", ".join(details.get("targets", [])), ", ".join(details.get("profiles", [])))
+        group_table.add_row(
+            capture_night, str(details.get("count", 0)), ", ".join(details.get("targets", [])), ", ".join(details.get("profiles", []))
+        )
     console.print(group_table)
     console.print(
         _summary_table(
@@ -393,7 +690,7 @@ def scan(
     local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write scan results to a JSON file.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
     result = _scan_summary(input, cli_config, recursive=recursive, force_ai=force_ai)
@@ -416,11 +713,13 @@ def preview(
     input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to preview.")],
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
     provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
-    force_ai: Annotated[bool, typer.Option("--force-ai", help="Show every file as AI-required when no precomputed AI JSON is available.")] = False,
+    force_ai: Annotated[
+        bool, typer.Option("--force-ai", help="Show every file as AI-required when no precomputed AI JSON is available.")
+    ] = False,
     local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write preview manifest to a JSON file.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
     result = preview_renames(input, cli_config, force_ai=force_ai, recursive=recursive, analyze_ai=True)
@@ -440,20 +739,40 @@ def preview(
 
 @app.command(help="Apply safe renames only when --apply is explicitly provided.")
 def rename(
-    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to rename.")],
+    input: Annotated[
+        Optional[Path], typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Photo directory to rename.")
+    ] = None,
+    manifest: Annotated[
+        Optional[Path],
+        typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Reviewed preview manifest to apply."),
+    ] = None,
     apply: Annotated[bool, typer.Option("--apply", help="Actually rename files. Required for any file changes.")] = False,
+    allow_unreviewed: Annotated[
+        bool,
+        typer.Option("--allow-unreviewed", help="Build and apply a new plan without reviewing a saved preview manifest."),
+    ] = False,
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
     provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
-    force_ai: Annotated[bool, typer.Option("--force-ai", help="Mark files as AI-required when no precomputed AI JSON is available.")] = False,
+    force_ai: Annotated[
+        bool, typer.Option("--force-ai", help="Mark files as AI-required when no precomputed AI JSON is available.")
+    ] = False,
     local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write rename manifest to a JSON file.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
     if not apply:
-        console.print(Panel("[yellow]No files were renamed. Re-run with --apply or use photosage preview first.[/yellow]", title="Safety Stop"))
+        console.print(
+            Panel("[yellow]No files were renamed. Re-run with --apply or use photosage preview first.[/yellow]", title="Safety Stop")
+        )
         return
+    if manifest and input:
+        raise typer.BadParameter("Choose --manifest or --input, not both")
+    if not manifest and not input:
+        raise typer.BadParameter("Provide a reviewed --manifest, or use --input with --allow-unreviewed")
+    if input and not allow_unreviewed:
+        raise typer.BadParameter("Direct folder apply requires --allow-unreviewed. Use a reviewed --manifest for the safe workflow")
 
     started = time.perf_counter()
     processed = 0
@@ -464,7 +783,19 @@ def rename(
 
     with Progress(TextColumn("[progress.description]{task.description}"), console=console) as progress:
         task = progress.add_task("Renaming files safely...", total=None)
-        result = rename_files(input, cli_config, apply=True, force_ai=force_ai, recursive=recursive, analyze_ai=True, progress_callback=on_item)
+        if manifest:
+            result = apply_reviewed_manifest(manifest, progress_callback=on_item)
+        else:
+            assert input is not None
+            result = rename_files(
+                input,
+                cli_config,
+                apply=True,
+                force_ai=force_ai,
+                recursive=recursive,
+                analyze_ai=True,
+                progress_callback=on_item,
+            )
         progress.update(task, description=f"Processed {processed} files")
 
     elapsed = round(time.perf_counter() - started, 2)
@@ -475,7 +806,10 @@ def rename(
     counts = _status_counts(result.manifest["files"])
     summary = {
         "renamed": counts.get("renamed", 0),
-        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0) + counts.get("ai-unavailable", 0),
+        "skipped": counts.get("unchanged", 0)
+        + counts.get("missing", 0)
+        + counts.get("overwrite-prevented", 0)
+        + counts.get("ai-unavailable", 0),
         "failed": counts.get("error", 0),
         "manifest": str(result.manifest_path),
         "elapsed_seconds": elapsed,
@@ -488,24 +822,42 @@ def rename(
 
 @app.command("lightroom-process", help="Process Lightroom export folders with XMP sidecar preservation.")
 def lightroom_process(
-    input: Annotated[Path, typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Lightroom export directory to process.")],
+    input: Annotated[
+        Optional[Path], typer.Option("--input", exists=True, file_okay=False, dir_okay=True, help="Lightroom export directory to process.")
+    ] = None,
+    manifest: Annotated[
+        Optional[Path],
+        typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Reviewed Lightroom preview manifest to apply."),
+    ] = None,
     preview: Annotated[bool, typer.Option("--preview", help="Preview Lightroom rename and organization operations.")] = False,
     apply: Annotated[bool, typer.Option("--apply", help="Actually rename exported files and matching XMP sidecars.")] = False,
+    allow_unreviewed: Annotated[bool, typer.Option("--allow-unreviewed", help="Build and apply an unreviewed Lightroom plan.")] = False,
     organize: Annotated[bool, typer.Option("--organize", help="Organize output into year/month/category folders.")] = False,
-    preset: Annotated[Optional[str], typer.Option("--preset", help="Lightroom preset such as travel, astronomy, construction, metadata-only, or ai-heavy.")] = None,
+    preset: Annotated[
+        Optional[str],
+        typer.Option("--preset", help="Lightroom preset such as travel, astronomy, construction, metadata-only, or ai-heavy."),
+    ] = None,
     recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Scan nested folders.")] = True,
     provider: Annotated[Optional[str], typer.Option("--provider", help="Override configured provider.")] = None,
     force_ai: Annotated[bool, typer.Option("--force-ai", help="Mark files as AI-required even when metadata is sufficient.")] = False,
     local_only: Annotated[bool, typer.Option("--local-only", help="Prevent cloud provider usage.")] = False,
-    force_catalog_modify: Annotated[bool, typer.Option("--force-catalog-modify", help="Allow processing inside probable Lightroom catalog paths. Not recommended.")] = False,
+    force_catalog_modify: Annotated[
+        bool, typer.Option("--force-catalog-modify", help="Allow processing inside probable Lightroom catalog paths. Not recommended.")
+    ] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Enable detailed console logging.")] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write Lightroom manifest to a JSON file.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     cli_config = _config(config, provider=provider, local_only=local_only, verbose=verbose)
     if apply and preview:
         console.print("[red]Choose either --preview or --apply, not both.[/red]")
         raise typer.Exit(code=1)
+    if manifest and input:
+        raise typer.BadParameter("Choose --manifest or --input, not both")
+    if apply and not manifest and not allow_unreviewed:
+        raise typer.BadParameter("Lightroom apply requires a reviewed --manifest, or --input with --allow-unreviewed")
+    if not manifest and not input:
+        raise typer.BadParameter("Provide --input to build a Lightroom preview")
     if not apply and not preview:
         preview = True
 
@@ -515,28 +867,36 @@ def lightroom_process(
         nonlocal processed
         processed += 1
         style = "green" if item.get("status") == "renamed" else ("yellow" if item.get("status") != "error" else "red")
-        console.print(f"[{style}][LIGHTROOM][/{style}] old: {item['original_filename']} new: {item['new_filename']} status: {item['status']}")
+        console.print(
+            f"[{style}][LIGHTROOM][/{style}] old: {item['original_filename']} new: {item['new_filename']} status: {item['status']}"
+        )
 
     try:
         with Progress(TextColumn("[progress.description]{task.description}"), console=console) as progress:
             task = progress.add_task("Processing Lightroom export...", total=None)
-            result = process_lightroom_export(
-                input_directory=input,
-                config=cli_config,
-                preview=preview,
-                apply=apply,
-                organize=organize,
-                preset_name=preset,
-                force_ai=force_ai,
-                recursive=recursive,
-                force_catalog_modify=force_catalog_modify,
-                analyze_ai=True,
-                progress_callback=on_item if apply else None,
-            )
+            if apply and manifest:
+                result = apply_reviewed_lightroom_manifest(manifest, progress_callback=on_item)
+            else:
+                assert input is not None
+                result = process_lightroom_export(
+                    input_directory=input,
+                    config=cli_config,
+                    preview=preview,
+                    apply=apply,
+                    organize=organize,
+                    preset_name=preset,
+                    force_ai=force_ai,
+                    recursive=recursive,
+                    force_catalog_modify=force_catalog_modify,
+                    analyze_ai=True,
+                    progress_callback=on_item if apply else None,
+                )
             progress.update(task, description=f"Processed {processed if apply else len(result.manifest['files'])} files")
     except CatalogSafetyError as error:
         console.print(f"[red]Lightroom catalog safety block:[/red] {error}")
-        console.print("[yellow]Export photos to a separate folder or pass --force-catalog-modify only if you understand the catalog reference risk.[/yellow]")
+        console.print(
+            "[yellow]Export photos to a separate folder or pass --force-catalog-modify only if you understand the catalog reference risk.[/yellow]"
+        )
         raise typer.Exit(code=1) from error
     except ValueError as error:
         console.print(f"[red]Lightroom processing failed:[/red] {error}")
@@ -552,7 +912,10 @@ def lightroom_process(
         "files": len(result.manifest["files"]),
         "renamed": counts.get("renamed", 0),
         "planned": counts.get("planned", 0),
-        "skipped": counts.get("unchanged", 0) + counts.get("missing", 0) + counts.get("overwrite-prevented", 0) + counts.get("ai-unavailable", 0),
+        "skipped": counts.get("unchanged", 0)
+        + counts.get("missing", 0)
+        + counts.get("overwrite-prevented", 0)
+        + counts.get("ai-unavailable", 0),
         "xmp_sidecars": sum(1 for item in result.manifest["files"] if item.get("xmp_detected")),
         "organization_applied": result.manifest.get("organization_applied"),
         "preset": result.manifest.get("preset") or "",
@@ -568,17 +931,27 @@ def lightroom_process(
 
 @app.command(help="Restore original filenames from a rename manifest.")
 def undo(
-    manifest: Annotated[Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Rename manifest to roll back.")],
+    manifest: Annotated[
+        Path, typer.Option("--manifest", exists=True, file_okay=True, dir_okay=False, help="Rename manifest to roll back.")
+    ],
     dry_run: Annotated[bool, typer.Option("--dry-run", help="Validate and report rollback operations without moving files.")] = False,
     force: Annotated[bool, typer.Option("--force", help="Skip confirmation for real undo operations.")] = False,
     verbose: Annotated[bool, typer.Option("--verbose", help="Print each rollback operation and enable detailed logging.")] = False,
-    continue_on_error: Annotated[bool, typer.Option("--continue-on-error/--stop-on-error", help="Continue processing after failed operations.")] = True,
-    recursive: Annotated[bool, typer.Option("--recursive/--no-recursive", help="Accepted for command consistency. Undo uses manifest paths.")] = True,
-    provider: Annotated[Optional[str], typer.Option("--provider", help="Accepted for command consistency. Undo does not use providers.")] = None,
+    continue_on_error: Annotated[
+        bool, typer.Option("--continue-on-error/--stop-on-error", help="Continue processing after failed operations.")
+    ] = True,
+    recursive: Annotated[
+        bool, typer.Option("--recursive/--no-recursive", help="Accepted for command consistency. Undo uses manifest paths.")
+    ] = True,
+    provider: Annotated[
+        Optional[str], typer.Option("--provider", help="Accepted for command consistency. Undo does not use providers.")
+    ] = None,
     force_ai: Annotated[bool, typer.Option("--force-ai", help="Accepted for command consistency. Undo does not use AI.")] = False,
-    local_only: Annotated[bool, typer.Option("--local-only", help="Accepted for command consistency. Undo does not use providers.")] = False,
+    local_only: Annotated[
+        bool, typer.Option("--local-only", help="Accepted for command consistency. Undo does not use providers.")
+    ] = False,
     output_json: Annotated[Optional[Path], typer.Option("--output-json", help="Write rollback summary to a JSON file.")] = None,
-    config: Annotated[Path, typer.Option("--config", exists=True, file_okay=True, dir_okay=False, help="Alternate config file.")] = Path("config/settings.yaml"),
+    config: Annotated[Path, typer.Option("--config", file_okay=True, dir_okay=False, help="Alternate config file.")] = DEFAULT_CONFIG_PATH,
 ) -> None:
     _ = recursive, provider, force_ai, local_only
     _config(config, verbose=verbose)
