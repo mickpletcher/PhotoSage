@@ -1,3 +1,5 @@
+import pytest
+
 from photosage.lightroom.xmp_reader import read_xmp, read_xmp_sidecar, sidecar_path_for_image
 
 XMP_TEXT = """<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>
@@ -42,3 +44,19 @@ def test_read_xmp_sidecar_uses_matching_sidecar(tmp_path):
 
     assert metadata["xmp_detected"] is True
     assert metadata["xmp_path"].endswith("photo.xmp")
+
+
+def test_read_xmp_rejects_entity_expansion(tmp_path):
+    xmp = tmp_path / "unsafe.xmp"
+    xmp.write_text(
+        """<?xml version="1.0"?>
+<!DOCTYPE xmpmeta [<!ENTITY unsafe "expanded">]>
+<x:xmpmeta xmlns:x="adobe:ns:meta/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:RDF><rdf:Description>&unsafe;</rdf:Description></rdf:RDF>
+</x:xmpmeta>
+""",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Invalid XMP data"):
+        read_xmp(xmp)

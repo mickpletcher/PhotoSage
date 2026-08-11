@@ -1,0 +1,8 @@
+# Default owner for repository changes.
+* @mickpletcher
+
+# Explicitly highlight security- and data-safety-sensitive areas.
+/.github/workflows/ @mickpletcher
+/src/photosage/manifest/ @mickpletcher
+/src/photosage/providers/ @mickpletcher
+/src/photosage/rename/ @mickpletcher

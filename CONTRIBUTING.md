@@ -6,7 +6,7 @@ guarantees. A feature is incomplete until its tests and documentation pass.
 ## Development setup
 
 ```powershell
-git clone https://github.com/OWNER/PhotoSage.git
+git clone https://github.com/mickpletcher/PhotoSage.git
 Set-Location .\PhotoSage
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -27,6 +27,22 @@ environment for final verification when the repository provides one.
 - Keep runtime artifacts and private photo data out of Git.
 - Do not weaken endpoint allowlisting or redirect protections.
 - Reject unknown configuration instead of silently ignoring it.
+
+## Branches, commits, and releases
+
+Use a short, descriptive branch name with one of these prefixes:
+
+- `feat/` for user-visible features
+- `fix/` for defects
+- `docs/` for documentation-only work
+- `test/` for test-only work
+- `chore/` for maintenance and dependency work
+- `release/` for release preparation
+
+Write imperative commit subjects and keep unrelated changes in separate commits.
+Pull requests should normally be squash-merged so `main` remains easy to audit.
+Release tags use signed semantic versions in the form `vMAJOR.MINOR.PATCH`, such
+as `v0.3.0`; never move or reuse a published release tag.
 
 ## Quality gate
 

@@ -9,8 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 LINK_PATTERN = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 REQUIRED_SPEC_FILES = {"spec.md", "plan.md", "tasks.md"}
 REQUIRED_GUIDES = {
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    "CODE_OF_CONDUCT.md",
     "CONTRIBUTING.md",
     "SECURITY.md",
+    "SUPPORT.md",
     "docs/architecture.md",
     "docs/catalog-integrations.md",
     "docs/cli-reference.md",
@@ -20,6 +23,14 @@ REQUIRED_GUIDES = {
     "docs/recovery-and-review.md",
     "docs/troubleshooting.md",
     "packaging/README.md",
+}
+REQUIRED_REPOSITORY_FILES = {
+    ".github/CODEOWNERS",
+    ".github/ISSUE_TEMPLATE/bug_report.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ".github/PULL_REQUEST_TEMPLATE.md",
+    ".github/dependabot.yml",
 }
 
 
@@ -73,6 +84,10 @@ def check_required_guides() -> list[str]:
     return [f"Required guide is missing: {path}" for path in sorted(REQUIRED_GUIDES) if not (ROOT / path).exists()]
 
 
+def check_required_repository_files() -> list[str]:
+    return [f"Required repository file is missing: {path}" for path in sorted(REQUIRED_REPOSITORY_FILES) if not (ROOT / path).exists()]
+
+
 def check_cli_reference() -> list[str]:
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "generate_cli_reference.py"), "--check"],
@@ -102,7 +117,14 @@ def check_configuration_reference() -> list[str]:
 
 
 def main() -> int:
-    errors = check_links() + check_specs() + check_required_guides() + check_cli_reference() + check_configuration_reference()
+    errors = (
+        check_links()
+        + check_specs()
+        + check_required_guides()
+        + check_required_repository_files()
+        + check_cli_reference()
+        + check_configuration_reference()
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}")

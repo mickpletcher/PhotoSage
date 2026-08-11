@@ -1,6 +1,12 @@
 # PhotoSage
 
-PhotoSage is a safe photo renaming tool.
+[![CI](https://github.com/mickpletcher/PhotoSage/actions/workflows/ci.yml/badge.svg)](https://github.com/mickpletcher/PhotoSage/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mickpletcher/PhotoSage/actions/workflows/codeql.yml/badge.svg)](https://github.com/mickpletcher/PhotoSage/actions/workflows/codeql.yml)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+PhotoSage is a privacy-first photo and video review, organization, search, and
+safe renaming tool.
 
 It reads photo metadata first. When metadata is weak, the CLI can call the configured vision provider for structured image understanding. The model never renames files directly.
 
@@ -75,11 +81,27 @@ Other files are skipped.
 
 ## Install
 
-From the repo root:
+PhotoSage currently installs from source. Versioned, signed Windows releases are
+planned after the release-signing configuration is complete.
+
+### Windows PowerShell
 
 ```powershell
+git clone https://github.com/mickpletcher/PhotoSage.git
+Set-Location .\PhotoSage
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.lock
+python -m pip install --no-deps -e .
+```
+
+### macOS or Linux
+
+```bash
+git clone https://github.com/mickpletcher/PhotoSage.git
+cd PhotoSage
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -r requirements.lock
 python -m pip install --no-deps -e .
 ```
@@ -754,6 +776,9 @@ Start with the guide for the task:
 - [Windows packaging and release](packaging/README.md): Signing, build, publishing,
   and independent verification.
 - [Contributing](CONTRIBUTING.md): Development rules and complete quality gate.
+- [Code of conduct](CODE_OF_CONDUCT.md): Participation and enforcement
+  expectations.
+- [Support](SUPPORT.md): Safe troubleshooting and issue-reporting guidance.
 - [Security policy](SECURITY.md): Supported versions, private reporting, and
   trust boundaries.
 - [Assessment](assessment.md): Current verified project state.
