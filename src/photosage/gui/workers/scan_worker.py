@@ -37,4 +37,3 @@ class ScanWorker(QObject):
 
     def cancel(self) -> None:
         self.cancelled = True
-

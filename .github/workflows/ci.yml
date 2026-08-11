@@ -2,36 +2,103 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  QT_QPA_PLATFORM: "offscreen"
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: "3.11"
+          - os: ubuntu-latest
+            python: "3.13"
+          - os: windows-latest
+            python: "3.11"
+          - os: macos-latest
+            python: "3.11"
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install Linux Qt runtime libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install --yes libegl1 libgl1 libxkbcommon-x11-0
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.lock
+      - run: python -m pip install --no-deps -e .
+      - run: python -m pytest
+      - name: Validate PowerShell catalog integration
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          [Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'integrations/capture-one/Invoke-PhotoSagePreview.ps1'),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count) { throw ($errors | Out-String) }
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.lock
+      - name: Install Linux Qt runtime libraries
+        run: sudo apt-get update && sudo apt-get install --yes libegl1 libgl1 libxkbcommon-x11-0
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.lock
+      - run: python -m pip install --no-deps -e .
+      - run: python -m ruff check src tests scripts
+      - run: python -m ruff format --check src tests scripts
+      - run: python -m pyright src
+      - run: python -m coverage run -m pytest
+      - run: python -m coverage report
+      - run: python scripts/check_docs.py
+      - run: python -m pip_audit -r requirements.lock --progress-spinner off
 
-      - name: Install dependencies
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip build twine
+      - run: python -m build
+      - run: python -m twine check dist/*
+      - name: Test installed wheel outside the repository
+        shell: bash
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install -e .
-          python -m pip install ruff
-
-      - name: Run tests
-        run: python -m pytest
-
-      - name: Run basic lint checks
-        run: python -m ruff check src tests scripts --select E9,F63,F7,F82
-
-      - name: Check documentation links and specs
-        run: python scripts/check_docs.py
+          python -m venv "$RUNNER_TEMP/photosage-smoke"
+          "$RUNNER_TEMP/photosage-smoke/bin/python" -m pip install dist/*.whl
+          smoke_dir="$(mktemp -d)"
+          cd "$smoke_dir"
+          mkdir photos
+          "$RUNNER_TEMP/photosage-smoke/bin/photosage" --help
+          "$RUNNER_TEMP/photosage-smoke/bin/photosage" scan --input photos

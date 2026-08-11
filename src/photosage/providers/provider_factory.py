@@ -7,8 +7,10 @@ from photosage.providers.anthropic_provider import AnthropicProvider
 from photosage.providers.base import VisionProvider
 from photosage.providers.exceptions import UnsupportedProviderError
 from photosage.providers.gemini_provider import GeminiProvider
+from photosage.providers.kimi_provider import KimiProvider
 from photosage.providers.lmstudio_provider import LMStudioProvider
 from photosage.providers.ollama_provider import OllamaProvider
+from photosage.providers.openai_compatible_provider import OpenAICompatibleLocalProvider
 from photosage.providers.openai_provider import OpenAIProvider
 
 
@@ -19,8 +21,10 @@ class ProviderFactory:
         "anthropic": AnthropicProvider,
         "openai": OpenAIProvider,
         "gemini": GeminiProvider,
+        "kimi": KimiProvider,
         "ollama": OllamaProvider,
         "lmstudio": LMStudioProvider,
+        "openai_compatible_local": OpenAICompatibleLocalProvider,
     }
 
     @classmethod

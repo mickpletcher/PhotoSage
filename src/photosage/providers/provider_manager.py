@@ -50,7 +50,9 @@ class ProviderManager:
         for provider_name in self.provider_order():
             try:
                 provider = ProviderFactory.create(provider_name, self.config)
-                logger.info("provider selected: %s local=%s local_only=%s", provider.provider_name, provider.is_local, self.config.local_only)
+                logger.info(
+                    "provider selected: %s local=%s local_only=%s", provider.provider_name, provider.is_local, self.config.local_only
+                )
                 started = time.perf_counter()
                 response = run_with_retries(
                     lambda provider=provider: provider.analyze_image(image_path, metadata),
@@ -61,6 +63,10 @@ class ProviderManager:
                 return response
             except ProviderError as error:
                 logger.warning("provider failed: %s error=%s", provider_name, type(error).__name__)
+                errors.append(f"{provider_name}: {type(error).__name__}")
+                continue
+            except Exception as error:
+                logger.warning("provider failed unexpectedly: %s error=%s", provider_name, type(error).__name__)
                 errors.append(f"{provider_name}: {type(error).__name__}")
                 continue
 

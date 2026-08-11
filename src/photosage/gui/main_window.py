@@ -3,10 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QDir, QThread, Qt
+from PySide6.QtCore import QDir, Qt, QThread, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QFileSystemModel,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from photosage.browsing.report import build_browse_data, write_browse_report
 from photosage.config import AppConfig, save_config
 from photosage.gui.dialogs.confirm_dialog import confirm
 from photosage.gui.dialogs.settings_dialog import SettingsDialog
@@ -36,6 +37,7 @@ from photosage.gui.workers.preview_worker import PreviewWorker
 from photosage.gui.workers.rename_worker import RenameWorker
 from photosage.gui.workers.scan_worker import ScanWorker
 from photosage.gui.workers.undo_worker import UndoWorker
+from photosage.manifest.review import apply_review_decisions
 
 
 class MainWindow(QMainWindow):
@@ -48,6 +50,8 @@ class MainWindow(QMainWindow):
         self.current_thread: QThread | None = None
         self.current_worker = None
         self.preview_ready = False
+        self.preview_manifest_path: Path | None = None
+        self.preview_input_directory: Path | None = None
         self.pending_undo_manifest: Path | None = None
         self.setWindowTitle("PhotoSage")
         self.resize(1440, 900)
@@ -65,9 +69,21 @@ class MainWindow(QMainWindow):
         self.scan_button = QPushButton("Scan")
         self.preview_button = QPushButton("Preview")
         self.rename_button = QPushButton("Apply Rename")
+        self.approve_button = QPushButton("Approve Selected")
+        self.reject_button = QPushButton("Reject Selected")
         self.undo_button = QPushButton("Undo Last Rename")
         self.settings_button = QPushButton("Settings")
-        for button in [self.scan_button, self.preview_button, self.rename_button, self.undo_button, self.settings_button]:
+        self.browse_button = QPushButton("Timeline and Map")
+        for button in [
+            self.scan_button,
+            self.preview_button,
+            self.approve_button,
+            self.reject_button,
+            self.rename_button,
+            self.undo_button,
+            self.browse_button,
+            self.settings_button,
+        ]:
             toolbar.addWidget(button)
 
         self.search = QLineEdit()
@@ -118,8 +134,11 @@ class MainWindow(QMainWindow):
         self.scan_button.clicked.connect(self.scan)
         self.preview_button.clicked.connect(self.preview)
         self.rename_button.clicked.connect(self.apply_rename)
+        self.approve_button.clicked.connect(lambda: self.preview_table.set_selected_approval("approved"))
+        self.reject_button.clicked.connect(lambda: self.preview_table.set_selected_approval("rejected"))
         self.undo_button.clicked.connect(self.open_undo_dialog)
         self.settings_button.clicked.connect(self.open_settings)
+        self.browse_button.clicked.connect(self.open_browser_report)
         self.search.textChanged.connect(self.preview_table.filter_text)
         self.preview_table.row_selected.connect(self.show_row_details)
         self.progress_panel.cancel_button.clicked.connect(self.cancel_current_worker)
@@ -158,10 +177,24 @@ class MainWindow(QMainWindow):
         if not self.preview_ready:
             QMessageBox.warning(self, "Preview Required", "Run Preview before applying renames.")
             return
+        if not self.preview_manifest_path or not self.preview_input_directory:
+            QMessageBox.warning(self, "Preview Required", "The reviewed preview manifest is unavailable. Run Preview again.")
+            return
+        if folder.resolve() != self.preview_input_directory:
+            QMessageBox.warning(self, "Preview Changed", "The selected folder changed after preview. Run Preview again.")
+            self.preview_ready = False
+            return
         if not confirm(self, "Apply Rename", "Rename files now? A manifest will be written before changes are applied."):
             return
+        decisions = self.preview_table.review_decisions()
+        if decisions:
+            try:
+                apply_review_decisions(self.preview_manifest_path, decisions, reviewer="desktop-gui")
+            except (OSError, ValueError) as error:
+                QMessageBox.warning(self, "Review Invalid", str(error))
+                return
         self.apply_controls_to_config()
-        worker = RenameWorker(folder, self.config, self.config.recursive_scanning)
+        worker = RenameWorker(self.preview_manifest_path, self.config)
         self._start_worker(worker, worker.finished, self.rename_finished)
 
     def open_undo_dialog(self) -> None:
@@ -184,24 +217,43 @@ class MainWindow(QMainWindow):
             self.provider_selector.load_from_config(self.config)
             self.log_console.append_line("Settings saved.")
 
+    def open_browser_report(self) -> None:
+        folder = self.selected_folder()
+        if not folder:
+            return
+        try:
+            output = self.config.thumbnail_cache_directory.parent / "photosage-browser.html"
+            write_browse_report(build_browse_data(folder, self.config.recursive_scanning), output)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(output.resolve())))
+        except (OSError, ValueError) as error:
+            QMessageBox.warning(self, "Browser Report Failed", str(error))
+
     def scan_finished(self, result: dict[str, Any]) -> None:
         self.preview_ready = False
+        self.preview_manifest_path = None
+        self.preview_input_directory = None
         self.preview_table.load_rows(result["files"])
         self.log_console.append_line(f"Scan complete: {result['summary']}")
 
     def preview_finished(self, manifest: dict[str, Any]) -> None:
         self.preview_ready = True
+        self.preview_manifest_path = Path(manifest["manifest_path"])
+        self.preview_input_directory = Path(manifest["input_directory"]).resolve()
         self.preview_table.load_rows(manifest["files"])
         self.log_console.append_line(f"Preview complete. Manifest: {manifest.get('manifest_path')}")
 
     def rename_finished(self, manifest: dict[str, Any]) -> None:
         self.preview_ready = False
+        self.preview_manifest_path = None
+        self.preview_input_directory = None
         self.preview_table.load_rows(manifest["files"])
         self.log_console.append_line(f"Rename complete. Manifest: {manifest.get('manifest_path')}")
 
     def undo_preview_finished(self, report: dict[str, Any]) -> None:
         self.log_console.append_line(f"Undo preview: {report['summary']}")
-        if self.pending_undo_manifest and confirm(self, "Confirm Undo", f"Rollback preview complete:\n{report['summary']}\n\nRestore files now?"):
+        if self.pending_undo_manifest and confirm(
+            self, "Confirm Undo", f"Rollback preview complete:\n{report['summary']}\n\nRestore files now?"
+        ):
             self.run_undo(self.pending_undo_manifest)
 
     def undo_finished(self, report: dict[str, Any]) -> None:
@@ -250,4 +302,3 @@ class MainWindow(QMainWindow):
         path = Path(self.folder_model.filePath(index))
         if path.is_dir():
             self.folder_picker.set_folder(path)
-

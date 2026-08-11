@@ -2,7 +2,13 @@ import json
 
 import pytest
 
-from photosage.manifest.manifest_reader import ManifestValidationError, load_manifest, resolved_input_directory, safe_restore_path, validate_manifest
+from photosage.manifest.manifest_reader import (
+    ManifestValidationError,
+    load_manifest,
+    resolved_input_directory,
+    safe_restore_path,
+    validate_manifest,
+)
 from photosage.manifest.manifest_writer import create_manifest, write_manifest
 
 
@@ -61,3 +67,20 @@ def test_resolved_input_directory_uses_manifest_parent_for_relative_paths(tmp_pa
     manifest = {"input_directory": "../photos"}
 
     assert resolved_input_directory(manifest, manifest_path) == (tmp_path / "photos").resolve(strict=False)
+
+
+def test_load_manifest_rejects_tampering(tmp_path):
+    manifest = create_manifest(
+        input_directory=tmp_path,
+        dry_run=True,
+        provider_used=None,
+        metadata_threshold=70,
+        files=[{"original_path": str(tmp_path / "a.jpg"), "new_path": str(tmp_path / "b.jpg"), "status": "planned"}],
+    )
+    manifest_path = write_manifest(manifest, tmp_path)
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    payload["files"][0]["new_path"] = str(tmp_path / "tampered.jpg")
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ManifestValidationError, match="checksum"):
+        load_manifest(manifest_path)

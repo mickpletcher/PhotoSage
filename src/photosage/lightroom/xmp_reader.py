@@ -114,7 +114,9 @@ def _find_bag_values(root: ElementTree.Element, name: str) -> list[str]:
     values: list[str] = []
     for element in root.iter():
         if _local_name(element.tag).lower() == name.lower():
-            values.extend(child.text.strip() for child in element.iter() if _local_name(child.tag) == "li" and child.text and child.text.strip())
+            values.extend(
+                child.text.strip() for child in element.iter() if _local_name(child.tag) == "li" and child.text and child.text.strip()
+            )
     return values
 
 

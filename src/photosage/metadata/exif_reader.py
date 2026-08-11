@@ -12,17 +12,18 @@ from PIL import ExifTags, Image
 from photosage.astro.metadata import enrich_astro_metadata
 
 try:
-    from pillow_heif import register_heif_opener
+    from pillow_heif import register_heif_opener  # pyright: ignore[reportMissingImports]
 except ImportError:
     register_heif_opener = None
 
 try:
-    import exifread
+    import exifread  # pyright: ignore[reportMissingImports]
 except ImportError:
     exifread = None
 
 from photosage.metadata.gps_parser import parse_gps_info
 from photosage.metadata.mixed_media import classify_mixed_media
+from photosage.metadata.video import VIDEO_EXTENSIONS, extract_video_metadata
 from photosage.scanner import SUPPORTED_IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
@@ -149,10 +150,7 @@ def _decode_exif(raw_exif: Any) -> dict[str, Any]:
     for key, value in raw_exif.items():
         name = ExifTags.TAGS.get(key, str(key))
         if name == "GPSInfo" and isinstance(value, dict):
-            decoded[name] = {
-                ExifTags.GPSTAGS.get(gps_key, str(gps_key)): gps_value
-                for gps_key, gps_value in value.items()
-            }
+            decoded[name] = {ExifTags.GPSTAGS.get(gps_key, str(gps_key)): gps_value for gps_key, gps_value in value.items()}
         else:
             decoded[name] = value
     return decoded
@@ -194,14 +192,14 @@ def extract_photo_metadata(image_path: Path) -> PhotoMetadata | None:
     modified_date = datetime.fromtimestamp(stat.st_mtime)
     raw_metadata: dict[str, Any] = {}
     width = height = None
-    color_mode = orientation = None
+    color_mode = None
 
     try:
         with Image.open(image_path) as image:
             width, height = image.size
             color_mode = image.mode
             raw_metadata.update(_decode_exif(image.getexif()))
-            raw_metadata.update(dict(image.info))
+            raw_metadata.update({str(key): value for key, value in image.info.items()})
     except Exception as error:
         logger.warning("image metadata read failed for %s: %s", image_path, error)
 
@@ -273,6 +271,8 @@ def extract_photo_metadata(image_path: Path) -> PhotoMetadata | None:
 
 def extract_metadata(image_path: Path) -> dict[str, Any]:
     """Extract metadata as a dictionary for the rename pipeline."""
+    if image_path.suffix.lower() in VIDEO_EXTENSIONS:
+        return extract_video_metadata(image_path)
     metadata = extract_photo_metadata(image_path)
     if metadata is None:
         return {}

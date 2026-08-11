@@ -34,4 +34,3 @@ class UndoWorker(QObject):
 
     def cancel(self) -> None:
         self.cancelled = True
-

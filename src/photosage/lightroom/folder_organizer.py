@@ -22,7 +22,9 @@ def destination_directory(root: Path, metadata: dict, category: str) -> Path:
     return root / year / month / safe_category
 
 
-def organized_destination(root: Path, metadata: dict, filename: str, ai_response: dict | None = None, preset_category: str | None = None) -> Path:
+def organized_destination(
+    root: Path, metadata: dict, filename: str, ai_response: dict | None = None, preset_category: str | None = None
+) -> Path:
     """Return the organized destination path for a renamed photo."""
     category = category_for_photo(metadata, ai_response, preset_category)
     return destination_directory(root, metadata, category) / filename

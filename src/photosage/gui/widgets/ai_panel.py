@@ -14,4 +14,3 @@ class AiPanel(QTextEdit):
 
     def set_ai_response(self, response: dict) -> None:
         self.setPlainText(json.dumps(response or {}, indent=2, default=str))
-

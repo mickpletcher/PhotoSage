@@ -26,10 +26,11 @@ def test_lmstudio_provider_sends_openai_compatible_vision_payload(monkeypatch, t
     _image(image_path)
     captured = {}
 
-    def fake_post(url, json, timeout):
+    def fake_post(url, json, timeout, allow_redirects):
         captured["url"] = url
         captured["json"] = json
         captured["timeout"] = timeout
+        assert allow_redirects is False
         return FakeResponse(
             {
                 "choices": [
@@ -59,7 +60,7 @@ def test_lmstudio_provider_retries_invalid_model_json(monkeypatch, tmp_path):
     _image(image_path)
     calls = {"count": 0}
 
-    def fake_post(url, json, timeout):
+    def fake_post(url, json, timeout, allow_redirects):
         calls["count"] += 1
         if calls["count"] == 1:
             return FakeResponse({"choices": [{"message": {"content": "not json"}}]})
@@ -78,7 +79,7 @@ def test_lmstudio_provider_unreachable_endpoint(monkeypatch, tmp_path):
     image_path = tmp_path / "photo.jpg"
     _image(image_path)
 
-    def fake_post(url, json, timeout):
+    def fake_post(url, json, timeout, allow_redirects):
         raise requests.ConnectionError("offline")
 
     monkeypatch.setattr("photosage.providers.lmstudio_provider.requests.post", fake_post)
@@ -91,7 +92,10 @@ def test_lmstudio_provider_unreachable_endpoint(monkeypatch, tmp_path):
 def test_lmstudio_provider_invalid_chat_envelope(monkeypatch, tmp_path):
     image_path = tmp_path / "photo.jpg"
     _image(image_path)
-    monkeypatch.setattr("photosage.providers.lmstudio_provider.requests.post", lambda url, json, timeout: FakeResponse({"bad": []}))
+    monkeypatch.setattr(
+        "photosage.providers.lmstudio_provider.requests.post",
+        lambda url, json, timeout, allow_redirects: FakeResponse({"bad": []}),
+    )
     provider = LMStudioProvider({"endpoint": "http://localhost:1234/v1", "model": "qwen2.5-vl"})
 
     with pytest.raises(InvalidResponseError):

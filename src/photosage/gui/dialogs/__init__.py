@@ -1,2 +1,1 @@
 """PhotoSage GUI dialogs."""
-

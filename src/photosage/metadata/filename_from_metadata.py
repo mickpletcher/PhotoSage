@@ -33,9 +33,8 @@ def location_from_metadata(metadata: Any) -> str | None:
     """Return a deterministic location token when metadata already has one."""
     if _get(metadata, "location"):
         return str(_get(metadata, "location"))
-    if (
-        (_get(metadata, "latitude") is not None and _get(metadata, "longitude") is not None)
-        or (_get(metadata, "gps_latitude") is not None and _get(metadata, "gps_longitude") is not None)
+    if (_get(metadata, "latitude") is not None and _get(metadata, "longitude") is not None) or (
+        _get(metadata, "gps_latitude") is not None and _get(metadata, "gps_longitude") is not None
     ):
         return "gps-location"
     if _get(metadata, "media_type") == "screenshot":
@@ -63,7 +62,11 @@ def date_from_metadata(metadata: Any) -> str:
 
 def filename_from_metadata(metadata: Any, counter: int = 1, max_length: int = 180) -> str:
     """Build a safe filename using metadata only."""
-    extension = _get(metadata, "extension") or _get(metadata, "file_extension") or Path(str(_get(metadata, "original_filename") or "photo.jpg")).suffix.lstrip(".")
+    extension = (
+        _get(metadata, "extension")
+        or _get(metadata, "file_extension")
+        or Path(str(_get(metadata, "original_filename") or "photo.jpg")).suffix.lstrip(".")
+    )
     context = (
         _get(metadata, "astro_telescope")
         or _get(metadata, "astro_filter")

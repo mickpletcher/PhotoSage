@@ -12,6 +12,7 @@ class PreviewTable(QTableWidget):
     """Main preview table for proposed rename operations."""
 
     row_selected = Signal(dict)
+    row_data_role = Qt.UserRole + 1
 
     columns = [
         "Thumbnail",
@@ -21,6 +22,7 @@ class PreviewTable(QTableWidget):
         "AI Used",
         "Provider",
         "Status",
+        "Approval",
         "Confidence",
         "File Type",
         "Date Taken",
@@ -60,9 +62,12 @@ class PreviewTable(QTableWidget):
                 metadata.get("date_taken") or row.get("date_taken", ""),
                 row.get("location", ""),
             ]
+            values.insert(7, row.get("approval_status", "not-required"))
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value))
-                item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                item.setData(self.row_data_role, row)
+                if column != 2:
+                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 item.setBackground(self._status_color(row))
                 self.setItem(row_index, column, item)
         self.setSortingEnabled(True)
@@ -70,9 +75,30 @@ class PreviewTable(QTableWidget):
 
     def filter_text(self, text: str) -> None:
         query = text.lower().strip()
-        for row_index, row in enumerate(self.rows):
-            haystack = " ".join(str(value) for value in row.values()).lower()
+        for row_index in range(self.rowCount()):
+            haystack = " ".join(self.item(row_index, column).text() for column in range(self.columnCount())).lower()
             self.setRowHidden(row_index, query not in haystack)
+
+    def set_selected_approval(self, approval: str) -> None:
+        for model_index in self.selectionModel().selectedRows():
+            row_index = model_index.row()
+            row = self.item(row_index, 0).data(self.row_data_role)
+            row["approval_status"] = approval
+            self.item(row_index, 7).setText(approval)
+
+    def review_decisions(self) -> list[dict[str, str]]:
+        decisions: list[dict[str, str]] = []
+        for row_index in range(self.rowCount()):
+            row = self.item(row_index, 0).data(self.row_data_role)
+            selector = str(row["original_path"])
+            proposed = self.item(row_index, 2).text().strip()
+            if row.get("approval_status") == "rejected" and row.get("status") != "rejected":
+                decisions.append({"selector": selector, "action": "reject"})
+            elif proposed != row.get("new_filename"):
+                decisions.append({"selector": selector, "action": "edit", "new_filename": proposed})
+            elif row.get("approval_status") == "approved" and row.get("status") == "needs-review":
+                decisions.append({"selector": selector, "action": "approve"})
+        return decisions
 
     def _status_color(self, row: dict[str, Any]) -> QColor:
         status = str(row.get("status", ""))
@@ -86,6 +112,6 @@ class PreviewTable(QTableWidget):
         selected = self.selectedItems()
         if not selected:
             return
-        row_index = selected[0].row()
-        if 0 <= row_index < len(self.rows):
-            self.row_selected.emit(self.rows[row_index])
+        row = selected[0].data(self.row_data_role)
+        if row:
+            self.row_selected.emit(row)

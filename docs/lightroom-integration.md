@@ -26,10 +26,10 @@ Preview mode does not rename files.
 ## Apply Renames
 
 ```powershell
-photosage lightroom-process --input ./LightroomExports --apply
+photosage lightroom-process --manifest ./manifests/rename_manifest_YYYYMMDD_HHMMSS.json --apply
 ```
 
-Apply mode writes a manifest before changing files.
+Preview writes an atomic, checksummed manifest. Apply consumes that exact reviewed manifest and journals the image and XMP sidecar operations independently.
 
 ## Organize Folders
 
@@ -126,7 +126,8 @@ PhotoSage blocks folders that look like catalog folders, including:
 Override only if you understand the risk:
 
 ```powershell
-photosage lightroom-process --input ./CatalogFolder --apply --force-catalog-modify
+photosage lightroom-process --input ./CatalogFolder --preview --force-catalog-modify
+photosage lightroom-process --manifest ./manifests/rename_manifest_YYYYMMDD_HHMMSS.json --apply
 ```
 
 PhotoSage still does not edit `.lrcat` databases. The risk is breaking Lightroom file references by renaming tracked files.

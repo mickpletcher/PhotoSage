@@ -29,6 +29,26 @@ def test_rollback_renames_restores_partial_batch(tmp_path):
     assert original.exists()
 
 
+def test_rollback_recovers_rename_started_journal_entry(tmp_path):
+    original = tmp_path / "original.jpg"
+    renamed = tmp_path / "renamed.jpg"
+    renamed.write_text("photo", encoding="utf-8")
+    manifest = create_manifest(
+        input_directory=tmp_path,
+        dry_run=False,
+        provider_used=None,
+        metadata_threshold=70,
+        files=[{"original_path": str(original), "new_path": str(renamed), "status": "rename-started"}],
+    )
+    manifest_path = write_manifest(manifest, tmp_path)
+
+    result = rollback_renames(manifest_path)
+
+    assert result[0]["status"] == "restored"
+    assert original.exists()
+    assert not renamed.exists()
+
+
 def test_rollback_skips_dry_run_manifest_items_as_failed_visibility(tmp_path):
     original = tmp_path / "original.jpg"
     renamed = tmp_path / "renamed.jpg"
@@ -114,4 +134,3 @@ def test_undo_from_manifest_compatibility_wrapper(tmp_path):
 
     assert results[0]["status"] == "restored"
     assert results[0]["destination"] == str(original)
-

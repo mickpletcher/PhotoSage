@@ -9,7 +9,7 @@ from photosage.manifest.manifest_writer import write_manifest
 from photosage.manifest.undo import rollback_all
 from photosage.metadata.exif_reader import extract_metadata
 from photosage.metadata.metadata_score import score_metadata
-from photosage.rename.renamer import apply_renames, build_rename_manifest
+from photosage.rename.renamer import apply_reviewed_manifest, build_rename_manifest
 from photosage.scanner import count_unsupported_files, scan_images
 
 
@@ -39,7 +39,9 @@ def scan_folder(input_directory: Path, config: AppConfig, recursive: bool = True
                 "status": "ai-required" if ai_required else "metadata-only",
                 "metadata": metadata,
                 "ai_response": {},
-                "thumbnail_path": str(ThumbnailCache(config.thumbnail_cache_directory, config.thumbnail_size).thumbnail_for(image_path) or ""),
+                "thumbnail_path": str(
+                    ThumbnailCache(config.thumbnail_cache_directory, config.thumbnail_size).thumbnail_for(image_path) or ""
+                ),
             }
         )
 
@@ -58,16 +60,23 @@ def scan_folder(input_directory: Path, config: AppConfig, recursive: bool = True
 
 def preview_folder(input_directory: Path, config: AppConfig, recursive: bool = True, force_ai: bool = False) -> dict[str, Any]:
     """Build a preview manifest using backend rename logic."""
-    manifest = build_rename_manifest(input_directory, config, force_ai=force_ai, dry_run=True, recursive=recursive)
+    manifest = build_rename_manifest(
+        input_directory,
+        config,
+        force_ai=force_ai,
+        dry_run=True,
+        recursive=recursive,
+        analyze_ai=True,
+    )
     manifest_path = write_manifest(manifest, config.manifest_directory)
     manifest["manifest_path"] = str(manifest_path)
     add_recent_manifest(config.recent_manifest_file, manifest_path)
     return manifest
 
 
-def apply_folder(input_directory: Path, config: AppConfig, recursive: bool = True) -> dict[str, Any]:
-    """Apply safe renames using backend rename logic."""
-    result = apply_renames(input_directory, config, recursive=recursive)
+def apply_folder(manifest_path: Path, config: AppConfig) -> dict[str, Any]:
+    """Apply the exact reviewed preview manifest."""
+    result = apply_reviewed_manifest(manifest_path)
     result.manifest["manifest_path"] = str(result.manifest_path)
     if result.manifest_path:
         add_recent_manifest(config.recent_manifest_file, result.manifest_path)

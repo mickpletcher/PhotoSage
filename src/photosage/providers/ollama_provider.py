@@ -10,7 +10,8 @@ from typing import Any
 import requests
 from PIL import Image
 
-from photosage.providers.base import VisionProvider, build_provider_prompt
+from photosage.providers.base import VisionProvider
+from photosage.providers.endpoint_policy import validate_local_endpoint
 from photosage.providers.exceptions import InvalidResponseError, ProviderUnavailableError, UnsupportedModelError
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,11 @@ class OllamaProvider(VisionProvider):
     def __init__(self, settings: dict[str, Any] | None = None) -> None:
         super().__init__(settings=settings)
         self.endpoint = str(self.settings.get("endpoint") or "http://localhost:11434").rstrip("/")
+        self.endpoint_trust = validate_local_endpoint(
+            self.endpoint,
+            self.settings.get("endpoint_allowlist"),
+            bool(self.settings.get("allow_insecure_lan_endpoint", False)),
+        ).classification
         self.timeout_seconds = float(self.settings.get("timeout_seconds") or self.settings.get("timeout") or 180)
         self.temperature = float(self.settings.get("temperature", 0.1))
         self.max_dimension = int(self.settings.get("max_dimension", 1600))
@@ -80,7 +86,7 @@ class OllamaProvider(VisionProvider):
     def _generate(self, encoded_image: str, metadata: dict[str, Any], retry: bool = False) -> str:
         payload = {
             "model": self.model,
-            "prompt": build_provider_prompt(metadata),
+            "prompt": self.build_prompt(metadata),
             "images": [encoded_image],
             "stream": False,
             "options": {
@@ -94,6 +100,7 @@ class OllamaProvider(VisionProvider):
                 f"{self.endpoint}/api/generate",
                 json=payload,
                 timeout=self.timeout_seconds,
+                allow_redirects=False,
             )
         except requests.Timeout as error:
             raise ProviderUnavailableError(f"ERROR: Ollama request timed out at {self.endpoint}") from error
@@ -104,9 +111,7 @@ class OllamaProvider(VisionProvider):
         logger.info("ollama response_ms=%s model=%s retry=%s", response_ms, self.model, retry)
 
         if response.status_code == 404:
-            raise ProviderUnavailableError(
-                f"ERROR: Model '{self.model}' is not installed. Run: ollama pull {self.model}"
-            )
+            raise ProviderUnavailableError(f"ERROR: Model '{self.model}' is not installed. Run: ollama pull {self.model}")
         if response.status_code >= 400:
             raise ProviderUnavailableError(f"ERROR: Ollama request failed with HTTP {response.status_code}")
 
@@ -122,4 +127,3 @@ class OllamaProvider(VisionProvider):
             raise ProviderUnavailableError(f"ERROR: Ollama model failure: {message}")
 
         return str(body.get("response") or "")
-

@@ -37,4 +37,3 @@ class PreviewWorker(QObject):
 
     def cancel(self) -> None:
         self.cancelled = True
-

@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from PIL import Image
 
 from photosage.gui.performance import ThumbnailCache, add_recent_manifest, recent_manifests

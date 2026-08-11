@@ -12,7 +12,7 @@ def _to_float(value: Any) -> float:
         return float(value.num) / float(value.den)
     if isinstance(value, tuple) and len(value) == 2:
         return float(Fraction(value[0], value[1]))
-    return float(value)
+    return float(str(value))
 
 
 def parse_gps_coordinate(value: Any, reference: str | None) -> float | None:

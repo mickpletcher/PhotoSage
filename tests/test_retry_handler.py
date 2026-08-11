@@ -38,4 +38,3 @@ def test_retry_handler_does_not_retry_authentication_errors():
         run_with_retries(operation, RetryConfig(attempts=3, initial_delay_seconds=0))
 
     assert calls["count"] == 1
-

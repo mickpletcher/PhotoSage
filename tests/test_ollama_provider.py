@@ -26,15 +26,12 @@ def test_ollama_provider_normalizes_valid_response(monkeypatch, tmp_path):
     photo = tmp_path / "photo.jpg"
     _image(photo)
 
-    def fake_post(url, json, timeout):
+    def fake_post(url, json, timeout, allow_redirects):
         assert url == "http://localhost:11434/api/generate"
         assert json["model"] == "llava"
         assert json["images"]
-        return FakeResponse(
-            {
-                "response": '{"primary_subject": "deck", "activity": "construction", "confidence": 0.8, "tags": ["build"]}'
-            }
-        )
+        assert allow_redirects is False
+        return FakeResponse({"response": '{"primary_subject": "deck", "activity": "construction", "confidence": 0.8, "tags": ["build"]}'})
 
     monkeypatch.setattr("photosage.providers.ollama_provider.requests.post", fake_post)
 
@@ -51,7 +48,7 @@ def test_ollama_provider_retries_once_after_malformed_response(monkeypatch, tmp_
     _image(photo)
     calls = {"count": 0}
 
-    def fake_post(url, json, timeout):
+    def fake_post(url, json, timeout, allow_redirects):
         calls["count"] += 1
         if calls["count"] == 1:
             return FakeResponse({"response": "not-json"})
@@ -68,7 +65,10 @@ def test_ollama_provider_retries_once_after_malformed_response(monkeypatch, tmp_
 def test_ollama_provider_raises_after_second_malformed_response(monkeypatch, tmp_path):
     photo = tmp_path / "photo.jpg"
     _image(photo)
-    monkeypatch.setattr("photosage.providers.ollama_provider.requests.post", lambda url, json, timeout: FakeResponse({"response": "bad"}))
+    monkeypatch.setattr(
+        "photosage.providers.ollama_provider.requests.post",
+        lambda url, json, timeout, allow_redirects: FakeResponse({"response": "bad"}),
+    )
 
     try:
         OllamaProvider({"model": "llava"}).analyze_image(photo, {})
@@ -82,7 +82,7 @@ def test_ollama_provider_timeout_is_provider_unavailable(monkeypatch, tmp_path):
     photo = tmp_path / "photo.jpg"
     _image(photo)
 
-    def fake_post(url, json, timeout):
+    def fake_post(url, json, timeout, allow_redirects):
         raise requests.Timeout("slow")
 
     monkeypatch.setattr("photosage.providers.ollama_provider.requests.post", fake_post)
@@ -105,4 +105,3 @@ def test_ollama_provider_rejects_unsupported_model(tmp_path):
         assert "Unsupported Ollama model" in str(error)
     else:
         raise AssertionError("Expected UnsupportedModelError")
-

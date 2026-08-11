@@ -48,3 +48,4 @@ Every spec must preserve these rules:
 ## Active Specs
 
 - [001-lm-studio-provider](001-lm-studio-provider/spec.md)
+- [002-production-expansion](002-production-expansion/spec.md)

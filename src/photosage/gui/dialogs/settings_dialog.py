@@ -19,7 +19,7 @@ class SettingsDialog(QDialog):
         self.setMinimumWidth(520)
 
         self.provider = QComboBox()
-        self.provider.addItems(["anthropic", "openai", "gemini", "ollama", "lmstudio"])
+        self.provider.addItems(["anthropic", "openai", "gemini", "kimi", "ollama", "lmstudio", "openai_compatible_local"])
         self.provider.setCurrentText(config.vision_provider)
         self.threshold = QSpinBox()
         self.threshold.setRange(0, 100)

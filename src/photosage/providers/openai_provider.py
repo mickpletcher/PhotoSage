@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from photosage.providers.base import VisionProvider, build_provider_prompt
+from photosage.providers.base import VisionProvider
 from photosage.providers.exceptions import AuthenticationError, ProviderUnavailableError
 
 
@@ -27,18 +27,20 @@ class OpenAIProvider(VisionProvider):
 
         media_type = "image/jpeg" if image_path.suffix.lower() in {".jpg", ".jpeg"} else f"image/{image_path.suffix.lower().lstrip('.')}"
         image_url = f"data:{media_type};base64,{self.image_as_base64(image_path)}"
-        client = OpenAI(api_key=api_key)
-        response = client.responses.create(
-            model=self.model,
-            input=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": build_provider_prompt(metadata)},
-                        {"type": "input_image", "image_url": image_url},
-                    ],
-                }
-            ],
-        )
+        client: Any = OpenAI(api_key=api_key)
+        try:
+            response = client.responses.create(
+                model=self.model,
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": self.build_prompt(metadata)},
+                            {"type": "input_image", "image_url": image_url},
+                        ],
+                    }
+                ],
+            )
+        except Exception as error:
+            raise ProviderUnavailableError(f"OpenAI request failed: {type(error).__name__}") from error
         return self.normalize(response.output_text)
-

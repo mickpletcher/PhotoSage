@@ -8,7 +8,6 @@ from photosage.config import AppConfig
 from photosage.lightroom.exporter import process_lightroom_export
 from photosage.manifest.undo import rollback_all
 
-
 runner = CliRunner()
 
 
@@ -35,7 +34,7 @@ def test_lightroom_preview_writes_manifest_without_renaming_sidecar(tmp_path):
     photo = tmp_path / "exports" / "IMG_0001.jpg"
     _write_image(photo)
     _write_xmp(photo.with_suffix(".xmp"))
-    config = AppConfig(manifest_directory=tmp_path / "manifests")
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=0)
 
     result = process_lightroom_export(photo.parent, config, preview=True, apply=False)
 
@@ -51,7 +50,7 @@ def test_lightroom_apply_renames_image_and_matching_sidecar(tmp_path):
     photo = tmp_path / "exports" / "IMG_0001.jpg"
     _write_image(photo)
     _write_xmp(photo.with_suffix(".xmp"))
-    config = AppConfig(manifest_directory=tmp_path / "manifests")
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=0)
 
     result = process_lightroom_export(photo.parent, config, preview=False, apply=True)
     item = result.manifest["files"][0]
@@ -73,12 +72,34 @@ def test_lightroom_manifest_undo_restores_image_and_sidecar(tmp_path):
     sidecar = photo.with_suffix(".xmp")
     _write_image(photo)
     _write_xmp(sidecar)
-    config = AppConfig(manifest_directory=tmp_path / "manifests")
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=0)
 
     result = process_lightroom_export(photo.parent, config, preview=False, apply=True)
     rollback = rollback_all(result.manifest_path, report_directory=tmp_path / "rollback_reports")
 
     assert rollback.summary["restored"] == 2
+    assert photo.exists()
+    assert sidecar.exists()
+
+
+def test_lightroom_sidecar_failure_rolls_back_image(monkeypatch, tmp_path):
+    photo = tmp_path / "exports" / "IMG_0001.jpg"
+    sidecar = photo.with_suffix(".xmp")
+    _write_image(photo)
+    _write_xmp(sidecar)
+    config = AppConfig(manifest_directory=tmp_path / "manifests", metadata_threshold=0)
+    original_rename = type(photo).rename
+
+    def fail_sidecar_rename(self, target):
+        if self == sidecar:
+            raise OSError("simulated sidecar failure")
+        return original_rename(self, target)
+
+    monkeypatch.setattr(type(photo), "rename", fail_sidecar_rename)
+
+    result = process_lightroom_export(photo.parent, config, preview=False, apply=True)
+
+    assert result.manifest["files"][0]["status"] == "rolled-back"
     assert photo.exists()
     assert sidecar.exists()
 
