@@ -60,10 +60,8 @@ def write_browse_report(data: dict[str, Any], output_html: Path, output_json: Pa
 <svg viewBox="0 0 1000 500" role="img" aria-label="Offline coordinate plot">{_svg_points(data["map_points"])}</svg>
 </html>"""
     # This user-requested offline report intentionally stores sensitive local filenames and GPS positions.
-    # codeql[py/clear-text-storage-sensitive-data]
     output_html.write_text(document, encoding="utf-8")
     if output_json:
         output_json.parent.mkdir(parents=True, exist_ok=True)
         # This optional user-requested export is documented as a sensitive local artifact and ignored by Git.
-        # codeql[py/clear-text-storage-sensitive-data]
         output_json.write_text(json.dumps(data, indent=2), encoding="utf-8")

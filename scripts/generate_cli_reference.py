@@ -21,6 +21,8 @@ def _text(value: object) -> str:
         return "none"
     if isinstance(value, bool):
         return str(value).lower()
+    if isinstance(value, Path):
+        return value.as_posix()
     if isinstance(value, (list, tuple)):
         return json.dumps(value)
     return str(value).replace("|", "\\|").replace("\n", " ")

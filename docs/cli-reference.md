@@ -45,7 +45,7 @@ Check configuration, providers, paths, and optional media tools.
 
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage doctor --help
@@ -95,7 +95,7 @@ Show configured provider availability and local/cloud status.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `--verbose` | no | `false` | Enable detailed console logging. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage providers --help
@@ -114,7 +114,7 @@ Find likely duplicate photos and optionally export duplicate groups as JSON.
 | `--output-json` | no | `none` | Write duplicate groups to JSON. |
 | `--output-csv` | no | `none` | Write review recommendations to CSV. |
 | `--review-folder` | no | `none` | Build a reviewed-manifest plan to move non-keepers into this folder. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage duplicates --help
@@ -131,7 +131,7 @@ Compare folder organization policies without creating folders or moving files.
 | `--input` | yes | `none` |  |
 | `--policy` | no | `none` | Policy to preview. Repeatable. |
 | `--output-json` | no | `none` |  |
-| `--config` | no | `config\settings.yaml` |  |
+| `--config` | no | `config/settings.yaml` |  |
 
 ```powershell
 photosage organize-preview --help
@@ -171,7 +171,7 @@ Process stable files from a watched folder into an approval queue or apply after
 | `--local-only` | no | `false` | Prevent cloud provider usage. |
 | `--verbose` | no | `false` | Enable detailed console logging. |
 | `--output-json` | no | `none` | Write watch result to JSON. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage watch --help
@@ -196,7 +196,7 @@ Preview or apply astrophotography filenames with capture-night grouping and FITS
 | `--local-only` | no | `false` | Prevent cloud provider usage. |
 | `--verbose` | no | `false` | Enable detailed console logging. |
 | `--output-json` | no | `none` | Write astro manifest to JSON. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage astro --help
@@ -217,7 +217,7 @@ Scan supported image files, score metadata, and show whether AI would be require
 | `--local-only` | no | `false` | Prevent cloud provider usage. |
 | `--verbose` | no | `false` | Enable detailed console logging. |
 | `--output-json` | no | `none` | Write scan results to a JSON file. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage scan --help
@@ -238,7 +238,7 @@ Preview proposed filename changes without renaming files.
 | `--local-only` | no | `false` | Prevent cloud provider usage. |
 | `--verbose` | no | `false` | Enable detailed console logging. |
 | `--output-json` | no | `none` | Write preview manifest to a JSON file. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage preview --help
@@ -262,7 +262,7 @@ Apply safe renames only when --apply is explicitly provided.
 | `--local-only` | no | `false` | Prevent cloud provider usage. |
 | `--verbose` | no | `false` | Enable detailed console logging. |
 | `--output-json` | no | `none` | Write rename manifest to a JSON file. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage rename --help
@@ -290,7 +290,7 @@ Process Lightroom export folders with XMP sidecar preservation.
 | `--force-catalog-modify` | no | `false` | Allow processing inside probable Lightroom catalog paths. Not recommended. |
 | `--verbose` | no | `false` | Enable detailed console logging. |
 | `--output-json` | no | `none` | Write Lightroom manifest to a JSON file. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage lightroom-process --help
@@ -314,7 +314,7 @@ Restore original filenames from a rename manifest.
 | `--force-ai` | no | `false` | Accepted for command consistency. Undo does not use AI. |
 | `--local-only` | no | `false` | Accepted for command consistency. Undo does not use providers. |
 | `--output-json` | no | `none` | Write rollback summary to a JSON file. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage undo --help
@@ -344,7 +344,7 @@ List locally installed Ollama models.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `--endpoint` | no | `none` | Ollama endpoint override. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage ollama models --help
@@ -359,7 +359,7 @@ Show best-effort Ollama diagnostics.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `--endpoint` | no | `none` | Ollama endpoint override. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage ollama info --help
@@ -391,7 +391,7 @@ Validate a manifest without moving files.
 | `--hashes` | no | `false` | Compute SHA256 hashes for existing referenced files. |
 | `--output-json` | no | `none` | Write validation report to JSON. |
 | `--verbose` | no | `false` | Print validation issues. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage manifest validate --help
@@ -423,7 +423,7 @@ Save a local GPS to location alias for filenames.
 | `--lat` | yes | `none` | Latitude. |
 | `--lon` | yes | `none` | Longitude. |
 | `--location` | yes | `none` | Location text to use in filenames. |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage geocode set --help
@@ -437,7 +437,7 @@ List cached GPS location names.
 
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
-| `--config` | no | `config\settings.yaml` | Alternate config file. |
+| `--config` | no | `config/settings.yaml` | Alternate config file. |
 
 ```powershell
 photosage geocode list --help
@@ -465,7 +465,7 @@ Validate configuration types, ranges, providers, and filename tokens.
 
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
-| `--config` | no | `config\settings.yaml` | Configuration file to validate. |
+| `--config` | no | `config/settings.yaml` | Configuration file to validate. |
 
 ```powershell
 photosage config validate --help
@@ -499,7 +499,7 @@ Compare provider latency, retries, validity, confidence, and routing.
 | `--allow-cloud` | no | `false` | Permit billable cloud provider calls. |
 | `--output-json` | no | `none` |  |
 | `--output-markdown` | no | `none` |  |
-| `--config` | no | `config\settings.yaml` |  |
+| `--config` | no | `config/settings.yaml` |  |
 
 ```powershell
 photosage benchmark providers --help
@@ -530,7 +530,7 @@ Index photo and video metadata into a local SQLite database.
 | --- | --- | --- | --- |
 | `--input` | yes | `none` |  |
 | `--recursive`, `--no-recursive` | no | `true` |  |
-| `--config` | no | `config\settings.yaml` |  |
+| `--config` | no | `config/settings.yaml` |  |
 
 ```powershell
 photosage search index --help
@@ -547,7 +547,7 @@ Search the private local metadata and embedding index.
 | `query` | yes | `none` | Natural-language search text. |
 | `--limit` | no | `20` |  |
 | `--output-json` | no | `none` |  |
-| `--config` | no | `config\settings.yaml` |  |
+| `--config` | no | `config/settings.yaml` |  |
 
 ```powershell
 photosage search query --help
