@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from xml.etree import ElementTree
 
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
 from PIL import Image
 
 
@@ -48,7 +49,7 @@ def _parse_xmp_text(xmp_text: str, source: str) -> dict[str, Any]:
         xmp_text = xmp_text[start:]
     try:
         root = ElementTree.fromstring(xmp_text)
-    except ElementTree.ParseError as error:
+    except (ElementTree.ParseError, DefusedXmlException) as error:
         raise ValueError(f"Invalid XMP data: {source}") from error
 
     result: dict[str, Any] = {
@@ -96,7 +97,7 @@ def _local_name(tag: str) -> str:
     return tag.split("}", 1)[-1].split(":", 1)[-1]
 
 
-def _find_text(root: ElementTree.Element, name: str) -> str | None:
+def _find_text(root: Any, name: str) -> str | None:
     for element in root.iter():
         if _local_name(element.tag).lower() != name.lower():
             continue
@@ -110,7 +111,7 @@ def _find_text(root: ElementTree.Element, name: str) -> str | None:
     return None
 
 
-def _find_bag_values(root: ElementTree.Element, name: str) -> list[str]:
+def _find_bag_values(root: Any, name: str) -> list[str]:
     values: list[str] = []
     for element in root.iter():
         if _local_name(element.tag).lower() == name.lower():

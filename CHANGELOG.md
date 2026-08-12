@@ -8,9 +8,16 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 
 ### Added
 
+- Added community health files for issue intake, pull requests, support,
+  conduct, and code ownership.
+- Added cross-platform source installation instructions, status badges, and
+  complete package index metadata.
+- Added branch and release naming guidance plus automated checks for required
+  repository health files.
 - Added generated CLI documentation and comprehensive configuration, Kimi,
   recovery, architecture, troubleshooting, catalog integration, contribution,
   security, and Windows release guides with drift checks.
+
 - Added Kimi K3 vision support through Moonshot AI's OpenAI-compatible API, JSON mode, official-endpoint enforcement, health reporting, GUI selection, privacy filtering, and tests.
 - Added strict local endpoint trust classification, loopback defaults, explicit LAN allowlisting, public-address blocking, and redirect prevention.
 - Added strict configuration validation, atomic settings writes, `photosage config validate`, and `photosage doctor`.
@@ -82,6 +89,16 @@ The format is based on Keep a Changelog, and this project follows semantic versi
 - Added deterministic filename building, sanitization, duplicate prevention, and safe dry run behavior.
 - Added pytest coverage for scoring, sanitization, filename building, duplicate handling, manifests, and undo.
 - Added README, configuration, prompt, future upgrades, and sample manifest files.
+
+### Security
+
+- Pinned every third-party GitHub Action to a verified full commit SHA, disabled
+  persisted checkout credentials, and added workflow timeouts.
+- Added release tag and package-version consistency checks.
+- Grouped routine minor and patch dependency updates while leaving major
+  upgrades isolated for review.
+- Hardened Lightroom XMP parsing against entity expansion and other unsafe XML
+  constructs.
 
 ### Removed
 

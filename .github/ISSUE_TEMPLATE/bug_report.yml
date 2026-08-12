@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a reproducible PhotoSage defect using sanitized data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve PhotoSage. Do not include API keys, personal photos, GPS data, private paths, manifests, logs, or provider responses. Security vulnerabilities belong in a private report, not a public issue.
+  - type: input
+    id: version
+    attributes:
+      label: PhotoSage version or commit
+      description: Use a release version or the output of `git rev-parse --short HEAD`.
+      placeholder: v0.3.0 or 210fb85
+    validations:
+      required: true
+  - type: dropdown
+    id: interface
+    attributes:
+      label: Interface
+      options:
+        - CLI
+        - Desktop GUI
+        - Lightroom integration
+        - Capture One integration
+        - Apple Photos integration
+        - Packaging or release
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include operating system, Python version, installation method, and relevant optional tools such as ffmpeg, Ollama, or LM Studio.
+      placeholder: Windows 11, Python 3.11, source install, ffmpeg 8.x
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Sanitized reproduction steps
+      description: Use synthetic files and remove private paths, filenames, metadata, and credentials.
+      placeholder: |
+        1. Create a synthetic image...
+        2. Run `photosage preview ...`
+        3. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Sanitized diagnostics
+      description: Paste only the minimum redacted output needed to reproduce the issue.
+      render: shell
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: I reproduced this with synthetic or sanitized data.
+          required: true
+        - label: I removed credentials, personal media, GPS data, private paths, manifests, logs, and provider response content.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true

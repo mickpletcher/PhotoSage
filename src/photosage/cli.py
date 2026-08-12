@@ -587,12 +587,14 @@ def watch(
         console.print("[yellow]Watch apply cancelled. No files were renamed.[/yellow]")
         return
     if apply:
-        assert manifest is not None
+        if manifest is None:
+            raise typer.BadParameter("Watch apply requires a reviewed --manifest")
         result = apply_reviewed_manifest(manifest)
         watch_manifest = result.manifest
         watch_manifest["manifest_path"] = str(result.manifest_path)
     else:
-        assert input is not None
+        if input is None:
+            raise typer.BadParameter("Provide --input to build a watch approval queue")
         watch_manifest = process_watch_once(input, cli_config, apply=False, recursive=recursive, force_ai=force_ai)
     console.print(_preview_table(watch_manifest["files"], title="Watch Folder Queue" if not apply else "Watch Folder Apply"))
     console.print(
@@ -786,7 +788,8 @@ def rename(
         if manifest:
             result = apply_reviewed_manifest(manifest, progress_callback=on_item)
         else:
-            assert input is not None
+            if input is None:
+                raise typer.BadParameter("Direct apply requires --input")
             result = rename_files(
                 input,
                 cli_config,
@@ -877,7 +880,8 @@ def lightroom_process(
             if apply and manifest:
                 result = apply_reviewed_lightroom_manifest(manifest, progress_callback=on_item)
             else:
-                assert input is not None
+                if input is None:
+                    raise typer.BadParameter("Provide --input to build a Lightroom preview")
                 result = process_lightroom_export(
                     input_directory=input,
                     config=cli_config,

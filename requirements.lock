@@ -60,7 +60,9 @@ cyclonedx-python-lib==11.11.1
     #   cyclonedx-bom
     #   pip-audit
 defusedxml==0.7.1
-    # via py-serializable
+    # via
+    #   photosage (pyproject.toml)
+    #   py-serializable
 distro==1.9.0
     # via
     #   anthropic

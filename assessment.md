@@ -25,10 +25,12 @@ The CLI and GUI share the same safety contract. Preview creates a checksummed re
 - Installable wheel includes runtime prompt resources and works outside the repository.
 - Locked development dependencies and vulnerability auditing.
 - Cross-platform CI for Linux, Windows, and macOS.
+- Full-SHA GitHub Actions pinning with non-persistent checkout credentials.
 - Full Ruff lint and format enforcement.
 - Branch coverage enforcement.
 - Loopback-by-default local endpoint trust with explicit LAN allowlisting.
 - Strict typed configuration validation and atomic config writes.
+- Defused XMP parsing rejects entity expansion and unsafe XML constructs.
 - Manual approve, reject, and filename-edit review history.
 - Interrupted-run inspection, resume, rollback, and post-rename integrity verification.
 - Provider benchmarking and generic local OpenAI-compatible support.
@@ -42,6 +44,8 @@ The CLI and GUI share the same safety contract. Preview creates a checksummed re
   guides.
 - Documentation checks fail when the CLI reference is stale or an application
   setting/provider is missing from the configuration reference.
+- Structured issue and pull request intake, code ownership, support guidance,
+  and conduct expectations.
 
 ## Safety Contract
 

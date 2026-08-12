@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/mickpletcher/PhotoSage/security/advisories/new
+    about: Use private vulnerability reporting for security or privacy issues.
+  - name: Support and troubleshooting
+    url: https://github.com/mickpletcher/PhotoSage/blob/main/SUPPORT.md
+    about: Review supported help channels and the safe diagnostic checklist before filing an issue.

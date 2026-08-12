@@ -17,6 +17,8 @@ When an upgrade is completed:
 
 ### 2026-08-11
 
+- Added community health templates, code ownership, full-SHA workflow pinning,
+  release tag validation, cross-platform setup guidance, and package metadata.
 - Added a generated CLI reference, exhaustive configuration reference, and
   detailed operational, provider, architecture, contribution, security, catalog,
   troubleshooting, and release documentation with drift enforcement.
