@@ -1,7 +1,7 @@
 # PhotoSage
 
-[![CI](https://github.com/mickpletcher/PhotoSage/actions/workflows/ci.yml/badge.svg)](https://github.com/mickpletcher/PhotoSage/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/mickpletcher/PhotoSage/actions/workflows/codeql.yml/badge.svg)](https://github.com/mickpletcher/PhotoSage/actions/workflows/codeql.yml)
+[![CI](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/ci.yml/badge.svg)](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/codeql.yml/badge.svg)](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/codeql.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -87,8 +87,8 @@ planned after the release-signing configuration is complete.
 ### Windows PowerShell
 
 ```powershell
-git clone https://github.com/mickpletcher/PhotoSage.git
-Set-Location .\PhotoSage
+git clone https://github.com/mickpletcher/local-photo-video-organizer.git
+Set-Location .\local-photo-video-organizer
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.lock
@@ -98,8 +98,8 @@ python -m pip install --no-deps -e .
 ### macOS or Linux
 
 ```bash
-git clone https://github.com/mickpletcher/PhotoSage.git
-cd PhotoSage
+git clone https://github.com/mickpletcher/local-photo-video-organizer.git
+cd local-photo-video-organizer
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.lock
