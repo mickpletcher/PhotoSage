@@ -75,12 +75,12 @@ photosage = "photosage.cli:app"
 photosage-gui = "photosage.gui.app:main"
 
 [project.urls]
-Homepage = "https://github.com/mickpletcher/PhotoSage"
-Changelog = "https://github.com/mickpletcher/PhotoSage/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/mickpletcher/PhotoSage#project-docs"
-Issues = "https://github.com/mickpletcher/PhotoSage/issues"
-Security = "https://github.com/mickpletcher/PhotoSage/security/policy"
-Source = "https://github.com/mickpletcher/PhotoSage"
+Homepage = "https://github.com/mickpletcher/local-photo-video-organizer"
+Changelog = "https://github.com/mickpletcher/local-photo-video-organizer/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/mickpletcher/local-photo-video-organizer#project-docs"
+Issues = "https://github.com/mickpletcher/local-photo-video-organizer/issues"
+Security = "https://github.com/mickpletcher/local-photo-video-organizer/security/policy"
+Source = "https://github.com/mickpletcher/local-photo-video-organizer"
 
 [tool.setuptools.packages.find]
 where = ["src"]
