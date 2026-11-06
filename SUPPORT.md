@@ -22,7 +22,7 @@ coordinates, private paths, manifests, logs, search databases, geocode caches,
 or AI provider response content. Redact diagnostics and use synthetic examples.
 
 Security and privacy vulnerabilities must be reported through
-[GitHub private vulnerability reporting](https://github.com/mickpletcher/PhotoSage/security/advisories/new),
+[GitHub private vulnerability reporting](https://github.com/mickpletcher/local-photo-video-organizer/security/advisories/new),
 not a public issue.
 
 ## Scope

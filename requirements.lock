@@ -30,7 +30,7 @@ build==1.5.0
     # via photosage (pyproject.toml)
 cachecontrol==0.14.4
     # via pip-audit
-certifi==2026.7.22
+certifi==2026.10.18
     # via
     #   httpcore
     #   httpx
@@ -74,7 +74,7 @@ docutils==0.23
     # via readme-renderer
 exifread==3.5.1
     # via photosage (pyproject.toml)
-filelock==3.32.2
+filelock==4.2.1
     # via cachecontrol
 fqdn==1.5.1
     # via jsonschema
@@ -145,7 +145,7 @@ more-itertools==11.1.0 ; platform_machine != 'ppc64le' and platform_machine != '
     # via
     #   jaraco-classes
     #   jaraco-functools
-msgpack==1.2.1
+msgpack==1.2.3
     # via cachecontrol
 nh3==0.3.6
     # via readme-renderer
@@ -169,7 +169,7 @@ packaging==26.3
     #   twine
 pefile==2024.8.26 ; sys_platform == 'win32'
     # via pyinstaller
-pillow==12.3.0
+pillow==13.0.0
     # via
     #   photosage (pyproject.toml)
     #   pillow-heif
@@ -193,7 +193,7 @@ pluggy==1.6.0
     #   pytest-qt
 py-serializable==2.1.0
     # via cyclonedx-python-lib
-pyasn1==0.6.4
+pyasn1==0.6.5
     # via pyasn1-modules
 pyasn1-modules==0.4.2
     # via google-auth
@@ -285,7 +285,7 @@ ruff==0.16.2
     # via photosage (pyproject.toml)
 secretstorage==3.5.0 ; platform_machine != 'ppc64le' and platform_machine != 's390x' and sys_platform == 'linux'
     # via keyring
-setuptools==84.0.0
+setuptools==84.1.0
     # via pyinstaller
 shellingham==1.5.4
     # via typer
@@ -338,7 +338,7 @@ tzdata==2026.3
     # via arrow
 uri-template==1.3.0
     # via jsonschema
-urllib3==2.7.0
+urllib3==2.8.0
     # via
     #   id
     #   requests

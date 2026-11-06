@@ -6,8 +6,8 @@ guarantees. A feature is incomplete until its tests and documentation pass.
 ## Development setup
 
 ```powershell
-git clone https://github.com/mickpletcher/PhotoSage.git
-Set-Location .\PhotoSage
+git clone https://github.com/mickpletcher/local-photo-video-organizer.git
+Set-Location .\local-photo-video-organizer
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip

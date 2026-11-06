@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -28,7 +28,7 @@ classifiers = [
 dependencies = [
   "typer>=0.12.0",
   "PyYAML>=6.0.0",
-  "Pillow>=12.3.0",
+  "Pillow>=13.0.0",
   "pillow-heif>=1.5.0",
   "exifread>=3.5.0",
   "defusedxml>=0.7.1",
@@ -75,12 +75,12 @@ photosage = "photosage.cli:app"
 photosage-gui = "photosage.gui.app:main"
 
 [project.urls]
-Homepage = "https://github.com/mickpletcher/PhotoSage"
-Changelog = "https://github.com/mickpletcher/PhotoSage/blob/main/CHANGELOG.md"
-Documentation = "https://github.com/mickpletcher/PhotoSage#project-docs"
-Issues = "https://github.com/mickpletcher/PhotoSage/issues"
-Security = "https://github.com/mickpletcher/PhotoSage/security/policy"
-Source = "https://github.com/mickpletcher/PhotoSage"
+Homepage = "https://github.com/mickpletcher/local-photo-video-organizer"
+Changelog = "https://github.com/mickpletcher/local-photo-video-organizer/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/mickpletcher/local-photo-video-organizer#project-docs"
+Issues = "https://github.com/mickpletcher/local-photo-video-organizer/issues"
+Security = "https://github.com/mickpletcher/local-photo-video-organizer/security/policy"
+Source = "https://github.com/mickpletcher/local-photo-video-organizer"
 
 [tool.setuptools.packages.find]
 where = ["src"]
