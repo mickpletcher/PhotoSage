@@ -1,11 +1,11 @@
-# PhotoSage
+# Local Photo Video Organizer
 
 [![CI](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/ci.yml/badge.svg)](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/codeql.yml/badge.svg)](https://github.com/mickpletcher/local-photo-video-organizer/actions/workflows/codeql.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-PhotoSage is a privacy-first photo and video review, organization, search, and
+Local Photo Video Organizer is a privacy-first photo and video review, organization, search, and
 safe renaming tool.
 
 It reads photo metadata first. When metadata is weak, the CLI can call the configured vision provider for structured image understanding. The model never renames files directly.
@@ -47,11 +47,11 @@ becomes something useful like:
 
 ## Safety Rules
 
-PhotoSage is built to avoid data loss.
+The organizer is built to avoid data loss.
 
 - No files are renamed unless you pass `--apply`.
 - Normal apply uses the exact reviewed preview manifest.
-- Preview mode does not change files.
+- Preview mode does not rename or overwrite source media; it can write manifests, logs, and local caches.
 - Existing files are never overwritten.
 - Atomic, checksummed manifests journal every rename state.
 - Undo recovers completed and interrupted rename operations.
@@ -60,7 +60,7 @@ PhotoSage is built to avoid data loss.
 
 ## Supported Files
 
-PhotoSage scans:
+The organizer scans:
 
 - `jpg`
 - `jpeg`
@@ -81,8 +81,11 @@ Other files are skipped.
 
 ## Install
 
-PhotoSage currently installs from source. Versioned, signed Windows releases are
-planned after the release-signing configuration is complete.
+The current project version is 0.3.0 and installs from source with Python 3.11 or newer. No packaged GitHub release is currently published. A tag-triggered signed Windows release workflow is provided; signing must be configured before publishing.
+
+This project is documented as Local Photo Video Organizer. For compatibility, the installed Python package and commands remain `photosage` and `photosage-gui`; use the command names shown below. Existing configuration and cache locations are unchanged.
+
+The locked installation includes the GUI, cloud-provider SDKs, and development tools. Optional external tools are `ffprobe` for video metadata and `ffmpeg` for video keyframes. Local AI additionally needs a running, configured vision server such as Ollama. Metadata-only scanning does not require an AI service.
 
 ### Windows PowerShell
 
@@ -238,7 +241,7 @@ photosage preview --input ./photos --output-json ./preview.json
 
 ## Configuration
 
-Inside the repository, edit [config/settings.yaml](config/settings.yaml). Installed use defaults to `%LOCALAPPDATA%\PhotoSage\settings.yaml` on Windows. A missing config file uses privacy-safe defaults.
+Inside the repository, edit [config/settings.yaml](config/settings.yaml). Outside the repository, the application uses its existing per-user configuration directory. Run `photosage config validate` to display the selected path, or pass `--config /path/to/settings.yaml` to use an explicit file. See the [configuration reference](docs/configuration-reference.md) for platform-specific paths. A missing config file uses privacy-safe defaults.
 
 Important settings:
 
@@ -280,7 +283,7 @@ Provider architecture exists for:
 
 Preview and rename can call the selected provider when metadata is below the configured threshold or `--force-ai` is used.
 
-The provider returns structured labels. PhotoSage still builds the filename locally.
+The provider returns structured labels. The organizer still builds the filename locally.
 
 ### Anthropic Cloud Example
 
@@ -453,12 +456,12 @@ The selected LM Studio model must be visible from `/v1/models`.
 
 ## Lightroom Workflow
 
-PhotoSage works with Lightroom export folders.
+The organizer works with Lightroom export folders.
 
 Best workflow:
 
 1. Export photos from Lightroom Classic to a separate folder.
-2. Run PhotoSage on that exported folder.
+2. Run the organizer on that exported folder.
 3. Review the preview.
 4. Apply only when the preview is correct.
 
@@ -480,7 +483,7 @@ Organize into folders:
 photosage lightroom-process --input ./LightroomExports --preview --organize
 ```
 
-PhotoSage keeps matching XMP sidecars together:
+The organizer keeps matching XMP sidecars together:
 
 ```text
 photo.jpg
@@ -548,7 +551,7 @@ Default behavior is safe:
 - It only includes files that are stable.
 - It writes an approval queue manifest.
 - Apply requires the reviewed queue manifest and confirmation.
-- It groups each run into a normal PhotoSage manifest.
+- It groups each run into a standard rename manifest.
 
 ```powershell
 photosage watch --input ./IncomingPhotos
@@ -557,7 +560,7 @@ photosage watch --manifest ./manifests/rename_manifest_YYYYMMDD_HHMMSS.json --ap
 
 ## Duplicate Detection
 
-PhotoSage can find likely duplicate images with local perceptual hashing.
+The organizer can find likely duplicate images with local perceptual hashing.
 
 It does not delete anything.
 
@@ -569,9 +572,9 @@ Normal rename planning only performs duplicate analysis when `detect_duplicates_
 
 ## Video Support
 
-PhotoSage reads MP4, MOV, M4V, AVI, MKV, and WebM metadata. When `ffprobe` is installed it captures duration, codec, dimensions, frame rate, and embedded creation time. `{duration}` and `{codec}` are available as filename tokens.
+The organizer reads MP4, MOV, M4V, AVI, MKV, and WebM metadata. When `ffprobe` is installed it captures duration, codec, dimensions, frame rate, and embedded creation time. `{duration}` and `{codec}` are available as filename tokens.
 
-When video AI analysis is requested, PhotoSage uses `ffmpeg` to extract a temporary local keyframe. The temporary frame is removed after classification. Videos are never uploaded unless a cloud provider is explicitly enabled.
+When video AI analysis is requested, the organizer uses `ffmpeg` to extract a temporary local keyframe. The temporary frame is removed after classification. Videos are never uploaded unless a cloud provider is explicitly enabled.
 
 ## Private Search, Timeline, And Map
 
@@ -587,7 +590,7 @@ The default `hash` backend is offline. Set `embedding_backend: ollama` to use a 
 Generate a standalone offline browser report:
 
 ```powershell
-photosage browse --input ./photos --output-html ./photosage-browser.html --output-json ./photosage-browser.json
+photosage browse --input ./photos --output-html ./media-browser.html --output-json ./media-browser.json
 ```
 
 The report contains timeline groups and an embedded GPS coordinate plot. It does not load online map tiles.
@@ -623,7 +626,7 @@ photosage geocode set --lat 36.50000 --lon -87.84000 --location dover-tn
 photosage geocode list
 ```
 
-If PhotoSage sees matching GPS coordinates, it uses the cached location in filenames.
+If the organizer sees matching GPS coordinates, it uses the cached location in filenames.
 
 ## Astrophotography
 
@@ -675,7 +678,7 @@ Capture night groups images after midnight with the previous evening, which matc
 
 ## Screenshot And Document Mode
 
-PhotoSage can label common non-photo images from local metadata and filenames.
+The organizer can label common non-photo images from local metadata and filenames.
 
 It can detect:
 
@@ -690,9 +693,9 @@ It can detect:
 - email screenshots
 - spreadsheet or presentation images
 
-For screenshots, PhotoSage tries to identify the source app when it is obvious, such as Chrome, Edge, Outlook, Teams, Excel, Word, VS Code, Slack, or Lightroom.
+For screenshots, the organizer tries to identify the source app when it is obvious, such as Chrome, Edge, Outlook, Teams, Excel, Word, VS Code, Slack, or Lightroom.
 
-For documents, PhotoSage adds document labels such as `receipt`, `invoice`, or `statement`.
+For documents, the organizer adds document labels such as `receipt`, `invoice`, or `statement`.
 
 These labels are added to metadata and can affect generated filenames:
 
@@ -713,7 +716,7 @@ Extra filename tokens are available:
 - `{app}`
 - `{ocr_summary}`
 
-`{ocr_summary}` uses embedded OCR-like metadata only when it already exists. PhotoSage does not run OCR yet.
+`{ocr_summary}` uses embedded OCR-like metadata only when it already exists. The organizer does not run OCR yet.
 
 ## Manifests And Undo
 
@@ -794,7 +797,7 @@ Start with the guide for the task:
 python -m pytest
 ```
 
-CI also runs:
+Pull-request and main-branch CI also run:
 
 - pytest on Linux, Windows, macOS, Python 3.11, and Python 3.13
 - full configured Ruff lint and formatting checks
@@ -803,7 +806,8 @@ CI also runs:
 - Markdown link and spec checks
 - locked dependency vulnerability auditing
 - wheel build, metadata validation, installation, and outside-repository smoke tests
-- tag-gated signed Windows executables, SBOM, checksums, and build provenance
+
+A separate version-tag release workflow builds signed Windows executables, an SBOM, checksums, and build provenance. It is not run by ordinary pull-request CI.
 
 ## Privacy Notes
 
