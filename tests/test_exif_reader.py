@@ -48,3 +48,16 @@ def test_extract_photo_metadata_skips_unsupported_file(tmp_path):
     text_path.write_text("not an image", encoding="utf-8")
 
     assert extract_photo_metadata(text_path) is None
+
+
+def test_extract_photo_metadata_reads_heif_with_current_pillow(tmp_path):
+    """Exercise the native HEIF plugin against the locked Pillow version."""
+    image_path = tmp_path / "synthetic.heic"
+    Image.new("RGB", (32, 24), color="green").save(image_path, format="HEIF")
+
+    metadata = extract_photo_metadata(image_path)
+
+    assert isinstance(metadata, PhotoMetadata)
+    assert metadata.width == 32
+    assert metadata.height == 24
+    assert metadata.color_mode == "RGB"
