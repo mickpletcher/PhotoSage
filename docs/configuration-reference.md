@@ -1,13 +1,37 @@
 # Configuration Reference
 
-PhotoSage reads YAML configuration from `config.yaml` by default. Pass another
-file with `--config PATH` on commands that accept it.
+Local Photo Video Organizer reads YAML configuration. Commands that accept
+`--config PATH` use that explicit file. Otherwise, the default path is selected
+in this order:
 
-Validate a configuration before processing photos:
+1. `config/settings.yaml`, relative to the current working directory, if it exists.
+2. On Windows, `%LOCALAPPDATA%\PhotoSage\settings.yaml`, when `LOCALAPPDATA` is set.
+3. Otherwise, `$XDG_CONFIG_HOME/photosage/settings.yaml` when `XDG_CONFIG_HOME` is
+   set, or `~/.config/photosage/settings.yaml` when it is not. This is the default
+   on macOS and Linux and the fallback on Windows without `LOCALAPPDATA`.
+
+The existing command names and per-user directory names are retained for
+compatibility. A bare `config.yaml` is not discovered automatically; use
+`--config` if you choose that filename.
+
+Display the selected default path and validate its configuration before
+processing photos:
 
 ```powershell
-photosage config validate --config .\config.yaml
+photosage config validate
 ```
+
+Validate an explicit repository configuration:
+
+```powershell
+photosage config validate --config .\config\settings.yaml
+```
+
+If the selected file does not exist, the application uses privacy-safe built-in
+defaults; it does not create that file or report a missing-file error. A successful
+validation message therefore does not mean a configuration file exists. Check
+the displayed path before editing settings. Existing invalid files do produce
+validation errors.
 
 Unknown top-level keys are rejected. Invalid values stop execution before any
 files are changed.
